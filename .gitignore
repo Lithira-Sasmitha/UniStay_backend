@@ -21,3 +21,4 @@ Thumbs.db
 # Distribution/build folders
 dist/
 build/
+config.bat

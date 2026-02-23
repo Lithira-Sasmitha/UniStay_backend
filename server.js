@@ -8,7 +8,9 @@ const userRoutes = require('./routes/userRoutes');
 const app = express();
 
 // Connect to Database
-connectDB();
+connectDB().then(() => {
+    console.log('Database operation completed.');
+});
 
 // Middleware
 app.use(express.json());

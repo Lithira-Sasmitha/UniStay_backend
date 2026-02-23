@@ -1,8 +1,5 @@
 const User = require('../models/User');
 
-// @desc    Get all users
-// @route   GET /api/users
-// @access  Public
 const getAllUsers = async (req, res) => {
   try {
     const users = await User.find({}).select('-password');
@@ -19,14 +16,10 @@ const getAllUsers = async (req, res) => {
   }
 };
 
-// @desc    Create a user
-// @route   POST /api/users
-// @access  Public
 const createUser = async (req, res) => {
   try {
     const { name, email, password } = req.body;
 
-    // Basic validation
     if (!name || !email || !password) {
       return res.status(400).json({
         success: false,
