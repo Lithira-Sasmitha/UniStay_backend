@@ -28,7 +28,6 @@ const registerUser = async (req, res) => {
   try {
     const { 
       name, 
-      username,
       email, 
       password, 
       role, 
@@ -40,7 +39,7 @@ const registerUser = async (req, res) => {
     } = req.body;
 
     const userExists = await User.findOne({ 
-      $or: [{ email }, { username }] 
+      email 
     });
 
     if (userExists) {
@@ -49,7 +48,6 @@ const registerUser = async (req, res) => {
 
     const user = await User.create({
       name,
-      username,
       email,
       password,
       role: role || 'student', // Default to student for public registration
@@ -214,10 +212,121 @@ const updateUserRole = async (req, res) => {
   }
 };
 
+/**
+ * @desc    Get user profile
+ * @route   GET /api/users/profile
+ * @access  Private
+ */
+const getUserProfile = async (req, res) => {
+  try {
+    const user = await User.findById(req.user._id);
+
+    if (user) {
+      res.json({
+        success: true,
+        user: {
+          _id: user._id,
+          name: user.name,
+          email: user.email,
+          role: user.role,
+          university: user.university,
+          address: user.address,
+          age: user.age,
+          nic: user.nic,
+          phonenumber: user.phonenumber,
+        },
+      });
+    } else {
+      res.status(404).json({ success: false, message: 'User not found' });
+    }
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+/**
+ * @desc    Update user profile
+ * @route   PUT /api/users/profile
+ * @access  Private
+ */
+const updateUserProfile = async (req, res) => {
+  try {
+    const user = await User.findById(req.user._id);
+
+    if (user) {
+      user.name = req.body.name || user.name;
+      user.email = req.body.email || user.email;
+      user.university = req.body.university || user.university;
+      user.address = req.body.address || user.address;
+      user.age = req.body.age || user.age;
+      user.nic = req.body.nic || user.nic;
+      user.phonenumber = req.body.phonenumber || user.phonenumber;
+
+      if (req.body.password) {
+        user.password = req.body.password;
+      }
+
+      const updatedUser = await user.save();
+
+      res.json({
+        success: true,
+        message: 'Profile updated successfully',
+        user: {
+          _id: updatedUser._id,
+          name: updatedUser.name,
+          email: updatedUser.email,
+          role: updatedUser.role,
+          university: updatedUser.university,
+          address: updatedUser.address,
+          age: updatedUser.age,
+          nic: updatedUser.nic,
+          phonenumber: updatedUser.phonenumber,
+        },
+      });
+    } else {
+      res.status(404).json({ success: false, message: 'User not found' });
+    }
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+/**
+ * @desc    Delete user (Super Admin Only)
+ * @route   DELETE /api/users/:id
+ * @access  Private/SuperAdmin
+ */
+const deleteUser = async (req, res) => {
+  try {
+    const user = await User.findById(req.params.id);
+
+    if (!user) {
+      return res.status(404).json({ success: false, message: 'User not found' });
+    }
+
+    // Optional: Prevent deleting the superadmin themselves or other superadmins if needed
+    // if (user.role === 'superadmin') {
+    //   return res.status(400).json({ success: false, message: 'Cannot delete a superadmin' });
+    // }
+
+    await User.findByIdAndDelete(req.params.id);
+
+    res.json({
+      success: true,
+      message: 'User deleted successfully',
+    });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+};
+
 module.exports = {
   registerUser,
   loginUser,
   refreshToken,
   logoutUser,
   updateUserRole,
+  getUserProfile,
+  updateUserProfile,
+  deleteUser,
 };

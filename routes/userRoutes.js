@@ -8,6 +8,9 @@ const {
   refreshToken,
   logoutUser,
   updateUserRole,
+  getUserProfile,
+  updateUserProfile,
+  deleteUser,
 } = require('../controllers/userController');
 
 // Import middlewares
@@ -19,8 +22,13 @@ router.post('/login', loginUser);
 router.get('/refresh', refreshToken);
 router.post('/logout', logoutUser);
 
+// Private profile routes
+router.get('/profile', protect, getUserProfile);
+router.put('/profile', protect, updateUserProfile);
+
 // Admin / SuperAdmin routes
 router.patch('/:id/role', protect, authorize(['superadmin']), updateUserRole);
+router.delete('/:id', protect, authorize(['superadmin']), deleteUser);
 
 /**
  * 🧪 Test RBAC Routes
