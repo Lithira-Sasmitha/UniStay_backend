@@ -8,10 +8,13 @@ const seedSuperAdmin = async () => {
     console.log('MongoDB Connected for seeding...');
 
     const adminEmail = 'superadmin@unistay.com';
+    const adminUsername = 'superadmin';
     const adminPassword = 'superadmin';
     
     // Find if admin already exists
-    let admin = await User.findOne({ email: adminEmail });
+    let admin = await User.findOne({ 
+      $or: [{ email: adminEmail }, { username: adminUsername }] 
+    });
 
     if (admin) {
       console.log('Super Admin exists. Updating password to "superadmin"...');
@@ -21,6 +24,7 @@ const seedSuperAdmin = async () => {
       // Create Super Admin
       admin = await User.create({
         name: 'Main Super Admin',
+        username: adminUsername,
         email: adminEmail,
         password: adminPassword, 
         role: 'superadmin',
@@ -34,6 +38,7 @@ const seedSuperAdmin = async () => {
 
     console.log('-----------------------------------------');
     console.log('✅ SUPER ADMIN READY!');
+    console.log(`Username: ${admin.username}`);
     console.log(`Email: ${admin.email}`);
     console.log('Password: superadmin');
     console.log('-----------------------------------------');

@@ -28,6 +28,7 @@ const registerUser = async (req, res) => {
   try {
     const { 
       name, 
+      username,
       email, 
       password, 
       role, 
@@ -39,7 +40,7 @@ const registerUser = async (req, res) => {
     } = req.body;
 
     const userExists = await User.findOne({ 
-      email 
+      $or: [{ email }, { username }] 
     });
 
     if (userExists) {
@@ -48,6 +49,7 @@ const registerUser = async (req, res) => {
 
     const user = await User.create({
       name,
+      username,
       email,
       password,
       role: role || 'student', // Default to student for public registration
