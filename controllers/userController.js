@@ -319,6 +319,70 @@ const deleteUser = async (req, res) => {
   }
 };
 
+/**
+ * @desc    Get all users (Super Admin Only)
+ * @route   GET /api/users
+ * @access  Private/SuperAdmin
+ */
+const getAllUsers = async (req, res) => {
+  try {
+    const users = await User.find({}).select('-password');
+    res.json({ success: true, users });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+/**
+ * @desc    Update any user details (Super Admin Only)
+ * @route   PUT /api/users/:id
+ * @access  Private/SuperAdmin
+ */
+const updateUserByAdmin = async (req, res) => {
+  try {
+    const user = await User.findById(req.params.id);
+
+    if (user) {
+      user.name = req.body.name || user.name;
+      user.email = req.body.email || user.email;
+      user.university = req.body.university || user.university;
+      user.address = req.body.address || user.address;
+      user.age = req.body.age || user.age;
+      user.nic = req.body.nic || user.nic;
+      user.phonenumber = req.body.phonenumber || user.phonenumber;
+      if (req.body.role) {
+        user.role = req.body.role;
+      }
+
+      if (req.body.password) {
+        user.password = req.body.password;
+      }
+
+      const updatedUser = await user.save();
+
+      res.json({
+        success: true,
+        message: 'User updated successfully',
+        user: {
+          _id: updatedUser._id,
+          name: updatedUser.name,
+          email: updatedUser.email,
+          role: updatedUser.role,
+          university: updatedUser.university,
+          address: updatedUser.address,
+          age: updatedUser.age,
+          nic: updatedUser.nic,
+          phonenumber: updatedUser.phonenumber,
+        },
+      });
+    } else {
+      res.status(404).json({ success: false, message: 'User not found' });
+    }
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+};
+
 module.exports = {
   registerUser,
   loginUser,
@@ -328,4 +392,6 @@ module.exports = {
   getUserProfile,
   updateUserProfile,
   deleteUser,
+  getAllUsers,
+  updateUserByAdmin,
 };

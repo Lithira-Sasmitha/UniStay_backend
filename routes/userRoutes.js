@@ -11,6 +11,8 @@ const {
   getUserProfile,
   updateUserProfile,
   deleteUser,
+  getAllUsers,
+  updateUserByAdmin,
 } = require('../controllers/userController');
 
 // Import middlewares
@@ -27,6 +29,8 @@ router.get('/profile', protect, getUserProfile);
 router.put('/profile', protect, updateUserProfile);
 
 // Admin / SuperAdmin routes
+router.get('/', protect, authorize(['superadmin']), getAllUsers);
+router.put('/:id', protect, authorize(['superadmin']), updateUserByAdmin);
 router.patch('/:id/role', protect, authorize(['superadmin']), updateUserRole);
 router.delete('/:id', protect, authorize(['superadmin']), deleteUser);
 
