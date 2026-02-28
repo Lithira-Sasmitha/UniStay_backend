@@ -14,8 +14,8 @@ const app = express();
 // Set up CORS - Production ready configuration
 app.use(
   cors({
-    origin: 'http://localhost:3000', // Allow React frontend
-    credentials: true,               // Allow sending/receiving cookies
+    origin: ['http://localhost:5173', 'http://localhost:3000'], // Allow Vite and React frontend
+    credentials: true,                                       // Allow sending/receiving cookies
   })
 );
 
