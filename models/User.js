@@ -41,7 +41,10 @@ const userSchema = new mongoose.Schema(
     },
     university: {
       type: String,
-      required: [true, 'Please add your university'],
+      required: [
+        function() { return this.role === 'student'; },
+        'Please add your university'
+      ],
     },
     address: {
       type: String,

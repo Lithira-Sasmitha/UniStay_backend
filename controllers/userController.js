@@ -39,8 +39,11 @@ const registerUser = async (req, res) => {
       phonenumber 
     } = req.body;
 
+    // Auto-generate username from email if not provided
+    const finalUsername = username || email;
+
     const userExists = await User.findOne({ 
-      $or: [{ email }, { username }] 
+      $or: [{ email }, { username: finalUsername }] 
     });
 
     if (userExists) {
@@ -49,7 +52,7 @@ const registerUser = async (req, res) => {
 
     const user = await User.create({
       name,
-      username,
+      username: finalUsername,
       email,
       password,
       role: role || 'student', // Default to student for public registration
