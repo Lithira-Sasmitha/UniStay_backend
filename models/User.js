@@ -2,6 +2,7 @@ const mongoose = require('mongoose');
 const bcrypt = require('bcryptjs');
 
 /**
+ * definition of user schema
  * User Schema for UniStay Boarding System
  * Roles: superadmin, student, boardingowner
  */
