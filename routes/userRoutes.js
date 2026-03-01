@@ -4,7 +4,11 @@ const router = express.Router();
 // Import controllers
 const {
   registerUser,
+  registerStudent,
+  registerOwner,
   loginUser,
+  loginStudent,
+  loginOwner,
   refreshToken,
   logoutUser,
   updateUserRole,
@@ -20,7 +24,11 @@ const { protect, authorize } = require('../middleware/authMiddleware');
 
 // Public auth routes
 router.post('/register', registerUser);
+router.post('/register/student', registerStudent);
+router.post('/register/owner', registerOwner);
 router.post('/login', loginUser);
+router.post('/login/student', loginStudent);
+router.post('/login/owner', loginOwner);
 router.get('/refresh', refreshToken);
 router.post('/logout', logoutUser);
 

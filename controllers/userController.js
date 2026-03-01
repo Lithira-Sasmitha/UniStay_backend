@@ -20,18 +20,27 @@ const generateRefreshToken = (id) => {
 };
 
 /**
- * @desc    Register new user
+ * @desc    Register new user (Generic/Legacy)
  * @route   POST /api/users/register
  * @access  Public
  */
 const registerUser = async (req, res) => {
+  // Default to student registration if no role specified
+  return registerStudent(req, res);
+};
+
+/**
+ * @desc    Register new student
+ * @route   POST /api/users/register/student
+ * @access  Public
+ */
+const registerStudent = async (req, res) => {
   try {
     const { 
       name, 
       username,
       email, 
       password, 
-      role, 
       university, 
       address, 
       age, 
@@ -39,8 +48,15 @@ const registerUser = async (req, res) => {
       phonenumber 
     } = req.body;
 
+    if (!university) {
+      return res.status(400).json({ success: false, message: 'University is required for students' });
+    }
+
     const userExists = await User.findOne({ 
-      $or: [{ email }, { username }] 
+      $or: [
+        { email }, 
+        { username: username || email }
+      ] 
     });
 
     if (userExists) {
@@ -49,10 +65,10 @@ const registerUser = async (req, res) => {
 
     const user = await User.create({
       name,
-      username,
+      username: username || email,
       email,
       password,
-      role: role || 'student', // Default to student for public registration
+      role: 'student',
       university,
       address,
       age,
@@ -64,16 +80,14 @@ const registerUser = async (req, res) => {
       const accessToken = generateAccessToken(user._id, user.role);
       const refreshToken = generateRefreshToken(user._id);
 
-      // Save Refresh Token to database
       user.refreshToken = refreshToken;
       await user.save();
 
-      // Set Refresh Token in HTTP-only Cookie
       res.cookie('jwt', refreshToken, {
         httpOnly: true,
         secure: process.env.NODE_ENV === 'production',
         sameSite: 'Strict',
-        maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
+        maxAge: 7 * 24 * 60 * 60 * 1000,
       });
 
       res.status(201).json({
@@ -83,7 +97,77 @@ const registerUser = async (req, res) => {
         email: user.email,
         role: user.role,
         accessToken,
-        refreshToken, // Added to response body as requested
+        refreshToken,
+      });
+    }
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+/**
+ * @desc    Register new boarding owner
+ * @route   POST /api/users/register/owner
+ * @access  Public
+ */
+const registerOwner = async (req, res) => {
+  try {
+    const { 
+      name, 
+      username,
+      email, 
+      password, 
+      address, 
+      age, 
+      nic, 
+      phonenumber 
+    } = req.body;
+
+    const userExists = await User.findOne({ 
+      $or: [
+        { email }, 
+        { username: username || email }
+      ] 
+    });
+
+    if (userExists) {
+      return res.status(400).json({ success: false, message: 'User or Email already exists' });
+    }
+
+    const user = await User.create({
+      name,
+      username: username || email,
+      email,
+      password,
+      role: 'boardingowner',
+      address,
+      age,
+      nic,
+      phonenumber,
+    });
+
+    if (user) {
+      const accessToken = generateAccessToken(user._id, user.role);
+      const refreshToken = generateRefreshToken(user._id);
+
+      user.refreshToken = refreshToken;
+      await user.save();
+
+      res.cookie('jwt', refreshToken, {
+        httpOnly: true,
+        secure: process.env.NODE_ENV === 'production',
+        sameSite: 'Strict',
+        maxAge: 7 * 24 * 60 * 60 * 1000,
+      });
+
+      res.status(201).json({
+        success: true,
+        _id: user._id,
+        name: user.name,
+        email: user.email,
+        role: user.role,
+        accessToken,
+        refreshToken,
       });
     }
   } catch (error) {
@@ -129,6 +213,88 @@ const loginUser = async (req, res) => {
       });
     } else {
       res.status(401).json({ success: false, message: 'Invalid email or password' });
+    }
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+/**
+ * @desc    Authenticate student
+ * @route   POST /api/users/login/student
+ * @access  Public
+ */
+const loginStudent = async (req, res) => {
+  try {
+    const { email, password } = req.body;
+    const user = await User.findOne({ email, role: 'student' }).select('+password');
+
+    if (user && (await user.matchPassword(password))) {
+      const accessToken = generateAccessToken(user._id, user.role);
+      const refreshToken = generateRefreshToken(user._id);
+
+      user.refreshToken = refreshToken;
+      await user.save();
+
+      res.cookie('jwt', refreshToken, {
+        httpOnly: true,
+        secure: process.env.NODE_ENV === 'production',
+        sameSite: 'Strict',
+        maxAge: 7 * 24 * 60 * 60 * 1000,
+      });
+
+      res.json({
+        success: true,
+        _id: user._id,
+        name: user.name,
+        email: user.email,
+        role: user.role,
+        accessToken,
+        refreshToken,
+      });
+    } else {
+      res.status(401).json({ success: false, message: 'Invalid email, password or role' });
+    }
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+/**
+ * @desc    Authenticate boarding owner
+ * @route   POST /api/users/login/owner
+ * @access  Public
+ */
+const loginOwner = async (req, res) => {
+  try {
+    const { email, password } = req.body;
+    const user = await User.findOne({ email, role: 'boardingowner' }).select('+password');
+
+    if (user && (await user.matchPassword(password))) {
+      const accessToken = generateAccessToken(user._id, user.role);
+      const refreshToken = generateRefreshToken(user._id);
+
+      user.refreshToken = refreshToken;
+      await user.save();
+
+      res.cookie('jwt', refreshToken, {
+        httpOnly: true,
+        secure: process.env.NODE_ENV === 'production',
+        sameSite: 'Strict',
+        maxAge: 7 * 24 * 60 * 60 * 1000,
+      });
+
+      res.json({
+        success: true,
+        _id: user._id,
+        name: user.name,
+        email: user.email,
+        role: user.role,
+        accessToken,
+        refreshToken,
+      });
+    } else {
+      res.status(401).json({ success: false, message: 'Invalid email, password or role' });
     }
   } catch (error) {
     res.status(500).json({ success: false, message: error.message });
@@ -385,7 +551,11 @@ const updateUserByAdmin = async (req, res) => {
 
 module.exports = {
   registerUser,
+  registerStudent,
+  registerOwner,
   loginUser,
+  loginStudent,
+  loginOwner,
   refreshToken,
   logoutUser,
   updateUserRole,

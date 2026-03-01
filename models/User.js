@@ -13,7 +13,6 @@ const userSchema = new mongoose.Schema(
     },
     username: {
       type: String,
-      required: [true, 'Please add a username'],
       unique: true,
       trim: true,
     },
@@ -41,7 +40,6 @@ const userSchema = new mongoose.Schema(
     },
     university: {
       type: String,
-      required: [true, 'Please add your university'],
     },
     address: {
       type: String,

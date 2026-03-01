@@ -10,13 +10,13 @@
 			"name": "01. Auth",
 			"item": [
 				{
-					"name": "Register User (Default Student)",
+					"name": "Register Student",
 					"request": {
 						"method": "POST",
 						"header": [],
 						"body": {
 							"mode": "raw",
-							"raw": "{\n    \"name\": \"Normal Student\",\n    \"email\": \"student2@unistay.com\",\n    \"password\": \"password123\",\n    \"university\": \"University of Colombo\",\n    \"address\": \"789 Street, Colombo\",\n    \"age\": 22,\n    \"nic\": \"200298765432\",\n    \"phonenumber\": \"0770000000\"\n}",
+							"raw": "{\n    \"name\": \"Test Student\",\n    \"email\": \"student@unistay.com\",\n    \"password\": \"password123\",\n    \"university\": \"University of Colombo\",\n    \"address\": \"789 Student St, Colombo\",\n    \"age\": 22,\n    \"nic\": \"200298765432\",\n    \"phonenumber\": \"0770000000\"\n}",
 							"options": {
 								"raw": {
 									"language": "json"
@@ -24,20 +24,133 @@
 							}
 						},
 						"url": {
-							"raw": "{{baseUrl}}/users/register",
+							"raw": "{{baseUrl}}/users/register/student",
 							"host": [
 								"{{baseUrl}}"
 							],
 							"path": [
 								"users",
-								"register"
+								"register",
+								"student"
 							]
 						}
 					},
 					"response": []
 				},
 				{
-					"name": "Login User",
+					"name": "Register Boarding Owner",
+					"request": {
+						"method": "POST",
+						"header": [],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"name\": \"Test Owner\",\n    \"email\": \"owner@unistay.com\",\n    \"password\": \"password123\",\n    \"address\": \"456 Owner Rd, Kandy\",\n    \"age\": 45,\n    \"nic\": \"198012345678\",\n    \"phonenumber\": \"0711111111\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{baseUrl}}/users/register/owner",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"users",
+								"register",
+								"owner"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Login Student",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"var jsonData = pm.response.json();",
+									"if (jsonData.accessToken) {",
+									"    pm.environment.set(\"accessToken\", jsonData.accessToken);",
+									"}"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"email\": \"student@unistay.com\",\n    \"password\": \"password123\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{baseUrl}}/users/login/student",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"users",
+								"login",
+								"student"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Login Boarding Owner",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"var jsonData = pm.response.json();",
+									"if (jsonData.accessToken) {",
+									"    pm.environment.set(\"accessToken\", jsonData.accessToken);",
+									"}"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"email\": \"owner@unistay.com\",\n    \"password\": \"password123\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{baseUrl}}/users/login/owner",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"users",
+								"login",
+								"owner"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Login Super Admin",
 					"event": [
 						{
 							"listen": "test",
