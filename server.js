@@ -1,52 +1,57 @@
-require('dotenv').config();
-const express = require('express');
-const cors = require('cors');
-const cookieParser = require('cookie-parser');
-const morgan = require('morgan');
-const helmet = require('helmet');
-const connectDB = require('./config/db');
-const userRoutes = require('./routes/userRoutes');
-const { notFound, errorHandler } = require('./middleware/errorMiddleware');
+require("dotenv").config();
 
-// Initialize Express
+const express = require("express");
+const cors = require("cors");
+const cookieParser = require("cookie-parser");
+const morgan = require("morgan");
+const helmet = require("helmet");
+
+const connectDB = require("./config/db");
+
+// Routes
+const userRoutes = require("./routes/userRoutes");
+const safetyRoutes = require("./routes/safetyroutes/a");
+
+// Error Middleware
+const { notFound, errorHandler } = require("./middleware/errorMiddleware");
+
+// Initialize app
 const app = express();
 
-// Set up CORS - Production ready configuration
-app.use(
-  cors({
-    origin: ['http://localhost:5173', 'http://localhost:3000'], // Allow Vite and React frontend
-    credentials: true,                                       // Allow sending/receiving cookies
-  })
-);
+// Connect Database
+connectDB();
 
 // Middleware
-app.use(helmet());                   // Security headers
-app.use(express.json());             // Data handler
-app.use(cookieParser());             // Cookie handler
+app.use(cors({
+  origin: ["http://localhost:5173", "http://localhost:3000"],
+  credentials: true,
+}));
 
-if (process.env.NODE_ENV === 'development') {
-  app.use(morgan('dev'));            // Log HTTP requests
-}
+app.use(express.json());
+app.use(express.urlencoded({ extended: false }));
+app.use(cookieParser());
+app.use(morgan("dev"));
+app.use(helmet());
 
-// Connect to MongoDB
-connectDB().then(() => {
-  console.log('Database operation completed.');
+// ------------------ ROUTES ------------------
+
+app.use("/api/users", userRoutes);
+app.use("/api/incidents", safetyRoutes);
+
+// Root endpoint
+app.get("/", (req, res) => {
+  res.send("UniStay API is Running...");
 });
 
-// Mount Routes
-app.use('/api/users', userRoutes);
+// ------------------ ERROR HANDLING ------------------
 
-// Root Endpoint
-app.get('/', (req, res) => {
-  res.send('UniStay API is Running...');
-});
-
-// Error Handling Middleware
 app.use(notFound);
 app.use(errorHandler);
+
+// ------------------ SERVER ------------------
 
 const PORT = process.env.PORT || 5000;
 
 app.listen(PORT, () => {
-  console.log(`Server listening in ${process.env.NODE_ENV || 'development'} mode on port ${PORT}`);
+  console.log(`Server listening on port ${PORT}`);
 });
