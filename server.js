@@ -6,6 +6,8 @@ const morgan = require('morgan');
 const helmet = require('helmet');
 const connectDB = require('./config/db');
 const userRoutes = require('./routes/userRoutes');
+const propertyRoutes = require('./routes/propertyRoutes');
+const bookingRoutes = require('./routes/bookingRoutes');
 const { notFound, errorHandler } = require('./middleware/errorMiddleware');
 
 // Initialize Express
@@ -35,6 +37,8 @@ connectDB().then(() => {
 
 // Mount Routes
 app.use('/api/users', userRoutes);
+app.use('/api/properties', propertyRoutes);
+app.use('/api/bookings', bookingRoutes);
 
 // Root Endpoint
 app.get('/', (req, res) => {
