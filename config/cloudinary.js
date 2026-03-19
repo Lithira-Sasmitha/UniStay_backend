@@ -30,12 +30,17 @@ if (
     });
 
     // Storage for verification docs (images + PDFs)
+    // PDFs use resource_type 'raw' so Cloudinary serves the actual PDF file,
+    // allowing browsers to render it natively in an iframe.
     const docStorage = new CloudinaryStorage({
         cloudinary,
-        params: {
-            folder: 'unistay_uploads',
-            allowed_formats: ['jpg', 'jpeg', 'png', 'pdf'],
-            resource_type: 'auto',
+        params: (_req, file) => {
+            const isPdf = file.mimetype === 'application/pdf';
+            return {
+                folder: 'unistay_uploads',
+                resource_type: isPdf ? 'raw' : 'image',
+                ...(isPdf ? {} : { allowed_formats: ['jpg', 'jpeg', 'png'] }),
+            };
         },
     });
 
