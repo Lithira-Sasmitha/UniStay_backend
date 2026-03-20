@@ -11,7 +11,7 @@ const {
     addPhoto,
     deletePhoto,
     toggleActive,
-    getFilmHallView,
+    getBoardingArrangeView,
     getOwnerBoardingManagement,
     getPublicListings,
     getListingById,
@@ -19,6 +19,10 @@ const {
     getAllProperties,
     setTrustBadge,
     debugAllProperties,
+    updateProperty,
+    deleteProperty,
+    rejectProperty,
+    removeOccupant,
 } = require('../controllers/propertyController');
 
 // ── Public Routes ────────────────────────────────────────────────────
@@ -42,6 +46,12 @@ router.patch(
     protect,
     authorize(['superadmin']),
     setTrustBadge
+);
+router.patch(
+    '/admin/:propertyId/reject',
+    protect,
+    authorize(['superadmin']),
+    rejectProperty
 );
 
 // ── Debug Route ──────────────────────────────────────────────────────
@@ -68,6 +78,20 @@ router.post(
 router.get('/my-listings', protect, authorize(['boardingowner']), getOwnerListings);
 router.get('/my-boarding', protect, authorize(['boardingowner']), getOwnerBoardingManagement);
 
+// ── Property CRUD ───────────────────────────────────────────────────
+router.put(
+    '/:propertyId',
+    protect,
+    authorize(['boardingowner', 'superadmin']),
+    updateProperty
+);
+router.delete(
+    '/:propertyId',
+    protect,
+    authorize(['boardingowner', 'superadmin']),
+    deleteProperty
+);
+
 // ── Room Routes ──────────────────────────────────────────────────────
 router.post(
     '/:propertyId/rooms',
@@ -86,6 +110,12 @@ router.delete(
     protect,
     authorize(['boardingowner']),
     deleteRoom
+);
+router.patch(
+    '/rooms/:roomId/remove-occupant',
+    protect,
+    authorize(['boardingowner']),
+    removeOccupant
 );
 
 // ── Photo Routes ─────────────────────────────────────────────────────
@@ -111,12 +141,12 @@ router.patch(
     toggleActive
 );
 
-// ── Film Hall View ────────────────────────────────────────────────────
+// ── Boarding Arrange View ────────────────────────────────────────────
 router.get(
-    '/:propertyId/film-hall',
+    '/:propertyId/boarding-arrange',
     protect,
     authorize(['boardingowner']),
-    getFilmHallView
+    getBoardingArrangeView
 );
 
 // ── Public: Detail by ID (last to avoid conflicts) ───────────────────

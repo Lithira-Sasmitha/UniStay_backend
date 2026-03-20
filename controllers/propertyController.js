@@ -1,6 +1,8 @@
 const Property = require('../models/Property');
 const Room = require('../models/Room');
+const Booking = require('../models/Booking');
 const { cloudinary } = require('../config/cloudinary');
+const { sendBookingEmail } = require('../config/emailService');
 
 // ──────────────────────────────────────────────────────────────────────
 // OWNER ENDPOINTS
@@ -116,17 +118,7 @@ const createProperty = async (req, res) => {
  */
 const getOwnerListings = async (req, res) => {
     try {
-        console.log('---- getOwnerListings Debug ----');
-        console.log('User ID:', req.user._id);
-        console.log('User Role:', req.user.role);
-        console.log('User Email:', req.user.email);
-        
         const properties = await Property.find({ owner: req.user._id }).sort('-createdAt');
-        
-        console.log('Properties found:', properties.length);
-        if (properties.length > 0) {
-            console.log('Property owners:', properties.map(p => p.owner.toString()));
-        }
 
         // Attach rooms to each property
         const results = await Promise.all(
@@ -169,7 +161,10 @@ const addRoom = async (req, res) => {
             facilities: facilities ? (Array.isArray(facilities) ? facilities : facilities.split(',').map(f => f.trim())) : [],
         });
 
-        res.status(201).json({ success: true, message: 'Room added', room });
+        // Return updated room list
+        const rooms = await Room.find({ property: property._id })
+            .populate('currentOccupants.student', 'name email phonenumber');
+        res.status(201).json({ success: true, message: 'Room added', room, rooms });
     } catch (error) {
         res.status(500).json({ success: false, message: error.message });
     }
@@ -189,6 +184,15 @@ const updateRoom = async (req, res) => {
         }
 
         const { roomType, monthlyRent, keyMoney, advanceAmount, advanceType, totalCapacity, facilities } = req.body;
+
+        // Validate capacity >= current occupants
+        if (totalCapacity && totalCapacity < room.currentOccupants.length) {
+            return res.status(400).json({
+                success: false,
+                message: `Cannot set capacity to ${totalCapacity}. Room has ${room.currentOccupants.length} current occupant(s).`,
+            });
+        }
+
         if (roomType) room.roomType = roomType;
         if (monthlyRent) room.monthlyRent = monthlyRent;
         if (keyMoney !== undefined) room.keyMoney = keyMoney;
@@ -220,8 +224,24 @@ const deleteRoom = async (req, res) => {
             return res.status(400).json({ success: false, message: 'Cannot delete room with active occupants' });
         }
 
+        // Check for pending/approved bookings
+        const activeBookings = await Booking.countDocuments({
+            room: room._id,
+            status: { $in: ['pending', 'approved'] },
+        });
+        if (activeBookings > 0) {
+            return res.status(400).json({
+                success: false,
+                message: `Cannot delete room with ${activeBookings} pending/approved booking(s). Cancel them first.`,
+            });
+        }
+
         await Room.findByIdAndDelete(req.params.roomId);
-        res.json({ success: true, message: 'Room deleted' });
+
+        // Return updated room list
+        const rooms = await Room.find({ property: room.property._id })
+            .populate('currentOccupants.student', 'name email phonenumber');
+        res.json({ success: true, message: 'Room deleted', rooms });
     } catch (error) {
         res.status(500).json({ success: false, message: error.message });
     }
@@ -302,21 +322,43 @@ const toggleActive = async (req, res) => {
             return res.status(403).json({ success: false, message: 'Not authorized' });
         }
 
+        // Can't activate a rejected/unverified property
+        if (!property.isActive && property.verificationStatus !== 'verified') {
+            return res.status(400).json({
+                success: false,
+                message: 'Cannot activate a property that is not verified by admin',
+            });
+        }
+
+        // Count affected bookings when deactivating
+        let pendingBookingsCount = 0;
+        if (property.isActive) {
+            pendingBookingsCount = await Booking.countDocuments({
+                property: property._id,
+                status: { $in: ['pending', 'approved'] },
+            });
+        }
+
         property.isActive = !property.isActive;
         await property.save();
 
-        res.json({ success: true, message: `Property ${property.isActive ? 'activated' : 'deactivated'}`, isActive: property.isActive });
+        res.json({
+            success: true,
+            message: `Property ${property.isActive ? 'activated' : 'deactivated'}`,
+            isActive: property.isActive,
+            pendingBookingsCount,
+        });
     } catch (error) {
         res.status(500).json({ success: false, message: error.message });
     }
 };
 
 /**
- * @desc    Get Film Hall view for a property (rooms + occupants)
- * @route   GET /api/properties/:propertyId/film-hall
+ * @desc    Get Boarding Arrange view — full boarding management data
+ * @route   GET /api/properties/:propertyId/boarding-arrange
  * @access  Private/Owner
  */
-const getFilmHallView = async (req, res) => {
+const getBoardingArrangeView = async (req, res) => {
     try {
         const property = await Property.findById(req.params.propertyId);
         if (!property) return res.status(404).json({ success: false, message: 'Property not found' });
@@ -325,9 +367,32 @@ const getFilmHallView = async (req, res) => {
         }
 
         const rooms = await Room.find({ property: property._id })
-            .populate('currentOccupants.student', 'name email phonenumber');
+            .populate('currentOccupants.student', 'name email phonenumber university nic')
+            .populate('currentOccupants.bookingId', 'status createdAt advancePaid');
 
-        res.json({ success: true, property, rooms });
+        // Get all active bookings for this property
+        const bookings = await Booking.find({
+            property: property._id,
+            status: { $in: ['pending', 'approved', 'confirmed'] },
+        })
+            .populate('student', 'name email phonenumber university address age nic')
+            .populate('room', 'roomType')
+            .sort('-createdAt');
+
+        // Summary stats
+        const totalRooms = rooms.length;
+        const totalCapacity = rooms.reduce((sum, r) => sum + r.totalCapacity, 0);
+        const totalOccupied = rooms.reduce((sum, r) => sum + r.currentOccupants.length, 0);
+        const totalVacant = totalCapacity - totalOccupied;
+        const pendingRequests = bookings.filter(b => b.status === 'pending').length;
+
+        res.json({
+            success: true,
+            property,
+            rooms,
+            bookings,
+            stats: { totalRooms, totalCapacity, totalOccupied, totalVacant, pendingRequests },
+        });
     } catch (error) {
         res.status(500).json({ success: false, message: error.message });
     }
@@ -340,17 +405,10 @@ const getFilmHallView = async (req, res) => {
  */
 const getOwnerBoardingManagement = async (req, res) => {
     try {
-        console.log('---- getOwnerBoardingManagement Debug ----');
-        console.log('User ID:', req.user._id);
-        console.log('User Role:', req.user.role);
-        console.log('User Email:', req.user.email);
-        
         // Return ALL owner properties so they can view rooms even before admin verification
         const properties = await Property.find({
             owner: req.user._id,
         }).sort('-createdAt');
-        
-        console.log('Properties found:', properties.length);
 
         const results = await Promise.all(
             properties.map(async (prop) => {
@@ -487,7 +545,7 @@ const getAllProperties = async (req, res) => {
  */
 const setTrustBadge = async (req, res) => {
     try {
-        const { badge } = req.body;
+        const { badge, badgeMessage } = req.body;
         if (!['gold', 'silver', 'bronze', 'unverified'].includes(badge)) {
             return res.status(400).json({ success: false, message: 'Invalid badge type' });
         }
@@ -513,7 +571,9 @@ const setTrustBadge = async (req, res) => {
         }
 
         property.trustBadge = badge;
+        property.badgeMessage = badgeMessage || '';
         property.verificationStatus = badge === 'unverified' ? 'pending' : 'verified';
+        property.rejectionReason = ''; // Clear any previous rejection
         // Ensure verified properties are visible in public listings
         if (badge !== 'unverified') {
             property.isActive = true;
@@ -541,12 +601,7 @@ const debugAllProperties = async (req, res) => {
             .populate('owner', 'name email role _id')
             .select('name owner verificationStatus createdAt');
         
-        console.log('---- DEBUG: All Properties ----');
-        properties.forEach(p => {
-            console.log(`Property: ${p.name}, Owner ID: ${p.owner?._id}, Owner Email: ${p.owner?.email}, Owner Role: ${p.owner?.role}`);
-        });
-
-        res.json({ 
+        res.json({
             success: true, 
             count: properties.length,
             properties: properties.map(p => ({
@@ -564,6 +619,217 @@ const debugAllProperties = async (req, res) => {
     }
 };
 
+/**
+ * @desc    Update property details
+ * @route   PUT /api/properties/:propertyId
+ * @access  Private/Owner or Admin
+ */
+const updateProperty = async (req, res) => {
+    try {
+        const property = await Property.findById(req.params.propertyId);
+        if (!property) return res.status(404).json({ success: false, message: 'Property not found' });
+
+        // Only owner or superadmin
+        if (property.owner.toString() !== req.user._id.toString() && req.user.role !== 'superadmin') {
+            return res.status(403).json({ success: false, message: 'Not authorized' });
+        }
+
+        const { name, address, description } = req.body;
+        if (name) property.name = name;
+        if (address) property.address = address;
+        if (description) property.description = description;
+
+        // If property was rejected, re-submit sets it back to pending
+        if (property.verificationStatus === 'rejected') {
+            property.verificationStatus = 'pending';
+            property.rejectionReason = '';
+        }
+
+        await property.save();
+        res.json({ success: true, message: 'Property updated', property });
+    } catch (error) {
+        res.status(500).json({ success: false, message: error.message });
+    }
+};
+
+/**
+ * @desc    Delete property with smart booking handling
+ * @route   DELETE /api/properties/:propertyId
+ * @access  Private/Owner or Admin
+ */
+const deleteProperty = async (req, res) => {
+    try {
+        const property = await Property.findById(req.params.propertyId).populate('owner', 'name email');
+        if (!property) return res.status(404).json({ success: false, message: 'Property not found' });
+
+        // Only owner or superadmin
+        if (property.owner._id.toString() !== req.user._id.toString() && req.user.role !== 'superadmin') {
+            return res.status(403).json({ success: false, message: 'Not authorized' });
+        }
+
+        // Check for confirmed bookings (active students living there)
+        const confirmedBookings = await Booking.find({ property: property._id, status: 'confirmed' });
+        if (confirmedBookings.length > 0) {
+            return res.status(400).json({
+                success: false,
+                message: 'Cannot delete property with active students. Deactivate it instead or wait until all bookings are completed/cancelled.',
+                confirmedCount: confirmedBookings.length,
+            });
+        }
+
+        // Auto-cancel pending/approved bookings and notify students
+        const pendingBookings = await Booking.find({
+            property: property._id,
+            status: { $in: ['pending', 'approved'] },
+        }).populate('student', 'name email');
+
+        for (const booking of pendingBookings) {
+            booking.status = 'cancelled';
+            await booking.save();
+            if (booking.student?.email) {
+                await sendBookingEmail(
+                    booking.student.email,
+                    'Booking Cancelled - Property Removed - UniStay',
+                    `<p>Hello <strong>${booking.student.name}</strong>,</p>
+                     <p>Your booking for <strong>${property.name}</strong> has been cancelled because the property has been removed by the owner.</p>
+                     <p>Please browse other listings on UniStay.</p>`
+                );
+            }
+        }
+
+        // Delete all rooms
+        await Room.deleteMany({ property: property._id });
+
+        // Delete photos from Cloudinary
+        for (const photo of property.photos) {
+            if (photo.publicId) {
+                try { await cloudinary.uploader.destroy(photo.publicId); } catch (_) {}
+            }
+        }
+        // Delete verification docs from Cloudinary
+        for (const docKey of ['nicPhoto', 'utilityBill', 'policeReport']) {
+            const doc = property.verificationDocs?.[docKey];
+            if (doc?.publicId) {
+                try { await cloudinary.uploader.destroy(doc.publicId); } catch (_) {}
+            }
+        }
+
+        await Property.findByIdAndDelete(property._id);
+
+        res.json({
+            success: true,
+            message: 'Property deleted',
+            cancelledBookings: pendingBookings.length,
+        });
+    } catch (error) {
+        res.status(500).json({ success: false, message: error.message });
+    }
+};
+
+/**
+ * @desc    Admin rejects a property with reason
+ * @route   PATCH /api/properties/admin/:propertyId/reject
+ * @access  Private/Admin
+ */
+const rejectProperty = async (req, res) => {
+    try {
+        const { rejectionReason } = req.body;
+        if (!rejectionReason || rejectionReason.length < 10) {
+            return res.status(400).json({ success: false, message: 'Rejection reason must be at least 10 characters' });
+        }
+
+        const property = await Property.findById(req.params.propertyId).populate('owner', 'name email');
+        if (!property) return res.status(404).json({ success: false, message: 'Property not found' });
+
+        property.verificationStatus = 'rejected';
+        property.rejectionReason = rejectionReason;
+        property.trustBadge = 'unverified';
+        property.isActive = false;
+        await property.save();
+
+        // Email the property owner
+        if (property.owner?.email) {
+            await sendBookingEmail(
+                property.owner.email,
+                'Property Rejected - UniStay',
+                `<p>Hello <strong>${property.owner.name}</strong>,</p>
+                 <p>Your property <strong>${property.name}</strong> has been rejected by the admin.</p>
+                 <p><strong>Reason:</strong> ${rejectionReason}</p>
+                 <p>Please update your listing and re-submit for verification.</p>`
+            );
+        }
+
+        res.json({ success: true, message: 'Property rejected', property });
+    } catch (error) {
+        res.status(500).json({ success: false, message: error.message });
+    }
+};
+
+/**
+ * @desc    Remove an occupant from a room (owner checks out / evicts a student)
+ * @route   PATCH /api/properties/rooms/:roomId/remove-occupant
+ * @access  Private/Owner
+ */
+const removeOccupant = async (req, res) => {
+    try {
+        const { studentId, reason } = req.body;
+        if (!studentId) return res.status(400).json({ success: false, message: 'Student ID is required' });
+
+        const room = await Room.findById(req.params.roomId).populate('property');
+        if (!room) return res.status(404).json({ success: false, message: 'Room not found' });
+        if (room.property.owner.toString() !== req.user._id.toString()) {
+            return res.status(403).json({ success: false, message: 'Not authorized' });
+        }
+
+        // Find the occupant entry
+        const occupantIndex = room.currentOccupants.findIndex(
+            o => o.student.toString() === studentId
+        );
+        if (occupantIndex === -1) {
+            return res.status(404).json({ success: false, message: 'Student not found in this room' });
+        }
+
+        const occupant = room.currentOccupants[occupantIndex];
+
+        // Cancel the confirmed booking
+        if (occupant.bookingId) {
+            const booking = await Booking.findById(occupant.bookingId).populate('student', 'name email');
+            if (booking) {
+                booking.status = 'cancelled';
+                await booking.save();
+
+                // Email the student
+                if (booking.student?.email) {
+                    await sendBookingEmail(
+                        booking.student.email,
+                        'Booking Cancelled - UniStay',
+                        `<p>Hello <strong>${booking.student.name}</strong>,</p>
+                         <p>Your stay at <strong>${room.property.name}</strong> has been ended by the property owner.</p>
+                         ${reason ? `<p><strong>Reason:</strong> ${reason}</p>` : ''}
+                         <p>If you have any questions, please contact the property owner.</p>`
+                    );
+                }
+            }
+        }
+
+        // Remove from occupants
+        room.currentOccupants.splice(occupantIndex, 1);
+        await room.save();
+
+        // Re-activate property if it was hidden due to full capacity
+        await Property.findByIdAndUpdate(room.property._id, { isActive: true });
+
+        // Return updated room with populated data
+        const updatedRoom = await Room.findById(room._id)
+            .populate('currentOccupants.student', 'name email phonenumber university nic')
+            .populate('currentOccupants.bookingId', 'status createdAt advancePaid');
+
+        res.json({ success: true, message: 'Occupant removed', room: updatedRoom });
+    } catch (error) {
+        res.status(500).json({ success: false, message: error.message });
+    }
+};
+
 module.exports = {
     createProperty,
     getOwnerListings,
@@ -573,7 +839,7 @@ module.exports = {
     addPhoto,
     deletePhoto,
     toggleActive,
-    getFilmHallView,
+    getBoardingArrangeView,
     getOwnerBoardingManagement,
     getPublicListings,
     getListingById,
@@ -581,4 +847,8 @@ module.exports = {
     getAllProperties,
     setTrustBadge,
     debugAllProperties,
+    updateProperty,
+    deleteProperty,
+    rejectProperty,
+    removeOccupant,
 };

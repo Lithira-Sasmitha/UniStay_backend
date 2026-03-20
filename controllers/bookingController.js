@@ -154,7 +154,7 @@ const confirmPayment = async (req, res) => {
             .populate({ path: 'property', populate: { path: 'owner', select: 'email name' } });
 
         if (!booking) return res.status(404).json({ success: false, message: 'Booking not found' });
-        if (booking.student.toString() !== req.user._id.toString()) {
+        if ((booking.student._id || booking.student).toString() !== req.user._id.toString()) {
             return res.status(403).json({ success: false, message: 'Not authorized' });
         }
         if (booking.status !== 'approved') {
@@ -224,7 +224,7 @@ const cancelBooking = async (req, res) => {
     try {
         const booking = await Booking.findById(req.params.bookingId);
         if (!booking) return res.status(404).json({ success: false, message: 'Booking not found' });
-        if (booking.student.toString() !== req.user._id.toString()) {
+        if ((booking.student._id || booking.student).toString() !== req.user._id.toString()) {
             return res.status(403).json({ success: false, message: 'Not authorized' });
         }
         if (!['pending', 'approved', 'confirmed'].includes(booking.status)) {
@@ -269,7 +269,7 @@ const getOwnerBookings = async (req, res) => {
         const propertyIds = properties.map(p => p._id);
 
         const bookings = await Booking.find({ property: { $in: propertyIds } })
-            .populate('student', 'name email phonenumber')
+            .populate('student', 'name email phonenumber university address age nic')
             .populate('room', 'roomType monthlyRent totalCapacity currentOccupants')
             .populate('property', 'name address')
             .sort('-createdAt');
