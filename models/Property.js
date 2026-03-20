@@ -43,13 +43,21 @@ const propertySchema = new mongoose.Schema(
         },
         verificationStatus: {
             type: String,
-            enum: ['pending', 'verified'],
+            enum: ['pending', 'verified', 'rejected'],
             default: 'pending',
+        },
+        rejectionReason: {
+            type: String,
+            default: '',
         },
         trustBadge: {
             type: String,
             enum: ['gold', 'silver', 'bronze', 'unverified'],
             default: 'unverified',
+        },
+        badgeMessage: {
+            type: String,
+            default: '',
         },
         isActive: {
             type: Boolean,

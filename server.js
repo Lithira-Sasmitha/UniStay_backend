@@ -14,10 +14,14 @@ const { notFound, errorHandler } = require('./middleware/errorMiddleware');
 const app = express();
 
 // Set up CORS - Production ready configuration
+const corsOrigins = process.env.CORS_ORIGINS
+  ? process.env.CORS_ORIGINS.split(',').map(o => o.trim())
+  : ['http://localhost:5173', 'http://localhost:3000'];
+
 app.use(
   cors({
-    origin: ['http://localhost:5173', 'http://localhost:3000'], // Allow Vite and React frontend
-    credentials: true,                                       // Allow sending/receiving cookies
+    origin: corsOrigins,
+    credentials: true,
   })
 );
 
