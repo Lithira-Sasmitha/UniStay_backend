@@ -1,7 +1,8 @@
 const Property = require('../models/Property');
 const Room = require('../models/Room');
 const Booking = require('../models/Booking');
-const { cloudinary } = require('../config/cloudinary');
+const { uploadFile } = require('../config/cloudinary');
+const { deleteFromSupabase } = require('../config/supabase');
 const { sendBookingEmail } = require('../config/emailService');
 
 // ──────────────────────────────────────────────────────────────────────
@@ -24,26 +25,23 @@ const createProperty = async (req, res) => {
             totalCapacity, facilities,
         } = req.body;
 
-        // Build photos array from uploaded files
+        // Build photos array — upload each buffer to Firebase
         const photos = [];
-        if (req.files && req.files.photos && req.files.photos.length > 0) {
+        if (req.files?.photos?.length > 0) {
             for (const file of req.files.photos) {
-                photos.push({ url: file.path, publicId: file.filename });
+                const result = await uploadFile(file, 'unistay_properties');
+                photos.push({ url: result.url, publicId: result.filePath });
             }
         }
 
-        // Verification docs from uploaded files
-        const verificationDocs = {
-            nicPhoto: req.files?.nicPhoto?.[0]
-                ? { url: req.files.nicPhoto[0].path, publicId: req.files.nicPhoto[0].filename }
-                : { url: '', publicId: '' },
-            utilityBill: req.files?.utilityBill?.[0]
-                ? { url: req.files.utilityBill[0].path, publicId: req.files.utilityBill[0].filename }
-                : { url: '', publicId: '' },
-            policeReport: req.files?.policeReport?.[0]
-                ? { url: req.files.policeReport[0].path, publicId: req.files.policeReport[0].filename }
-                : { url: '', publicId: '' },
-        };
+        // Verification docs — upload to Firebase
+        const verificationDocs = { nicPhoto: { url: '', publicId: '' }, utilityBill: { url: '', publicId: '' }, policeReport: { url: '', publicId: '' } };
+        for (const docKey of ['nicPhoto', 'utilityBill', 'policeReport']) {
+            if (req.files?.[docKey]?.[0]) {
+                const result = await uploadFile(req.files[docKey][0], 'unistay_docs');
+                verificationDocs[docKey] = { url: result.url, publicId: result.filePath };
+            }
+        }
 
         // Create Property
         const property = await Property.create({
@@ -267,7 +265,8 @@ const addPhoto = async (req, res) => {
             return res.status(400).json({ success: false, message: 'No image provided' });
         }
 
-        property.photos.push({ url: req.file.path, publicId: req.file.filename });
+        const result = await uploadFile(req.file, 'unistay_properties');
+        property.photos.push({ url: result.url, publicId: result.filePath });
         await property.save();
 
         res.json({ success: true, message: 'Photo added', photos: property.photos });
@@ -294,8 +293,8 @@ const deletePhoto = async (req, res) => {
             return res.status(404).json({ success: false, message: 'Photo not found' });
         }
 
-        // Remove from Cloudinary
-        await cloudinary.uploader.destroy(req.params.publicId);
+        // Remove from Firebase Storage (also handles old Cloudinary IDs gracefully)
+        await deleteFromSupabase(req.params.publicId);
 
         // Remove from DB
         property.photos.splice(photoIndex, 1);
@@ -700,17 +699,17 @@ const deleteProperty = async (req, res) => {
         // Delete all rooms
         await Room.deleteMany({ property: property._id });
 
-        // Delete photos from Cloudinary
+        // Delete photos from Firebase Storage
         for (const photo of property.photos) {
             if (photo.publicId) {
-                try { await cloudinary.uploader.destroy(photo.publicId); } catch (_) {}
+                try { await deleteFromSupabase(photo.publicId); } catch (_) {}
             }
         }
-        // Delete verification docs from Cloudinary
+        // Delete verification docs from Firebase Storage
         for (const docKey of ['nicPhoto', 'utilityBill', 'policeReport']) {
             const doc = property.verificationDocs?.[docKey];
             if (doc?.publicId) {
-                try { await cloudinary.uploader.destroy(doc.publicId); } catch (_) {}
+                try { await deleteFromSupabase(doc.publicId); } catch (_) {}
             }
         }
 

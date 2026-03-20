@@ -17,7 +17,7 @@ UniStay is a student boarding/accommodation platform backend built with Express 
 
 ```
 MONGODB_URI, ACCESS_TOKEN_SECRET, REFRESH_TOKEN_SECRET, NODE_ENV
-CLOUDINARY_CLOUD_NAME, CLOUDINARY_API_KEY, CLOUDINARY_API_SECRET  # optional, falls back to memory storage
+SUPABASE_URL, SUPABASE_SERVICE_KEY  # optional, falls back to memory storage
 STRIPE_SECRET_KEY          # optional, payment endpoints return 503 without it
 EMAIL_HOST, EMAIL_PORT, EMAIL_USER, EMAIL_PASS  # Brevo SMTP for booking notifications
 ```
@@ -39,7 +39,7 @@ EMAIL_HOST, EMAIL_PORT, EMAIL_USER, EMAIL_PASS  # Brevo SMTP for booking notific
 - `Room` → belongs to Property. Tracks `currentOccupants[]` with student refs. Has virtual `availableSlots`.
 - `Booking` → links Student ↔ Room ↔ Property. Status flow: pending → approved → confirmed (after Stripe payment) or rejected/cancelled.
 
-**File uploads**: Cloudinary via multer-storage-cloudinary (`config/cloudinary.js`). Two multer instances: `upload` (images only, 5MB) and `uploadDocs` (images+PDF, 10MB). Falls back to memory storage if Cloudinary credentials are missing.
+**File uploads**: Supabase Storage via multer memory storage + `config/supabase.js`. Two multer instances in `config/cloudinary.js`: `upload` (images only, 5MB) and `uploadDocs` (images+PDF, 10MB). Files upload to Supabase Storage buckets (`property-photos`, `verification-docs`) with public URLs. Falls back to memory storage if Supabase credentials are missing.
 
 **Payments**: Stripe PaymentIntents in LKR currency. Created after owner approves a booking, confirmed by student.
 

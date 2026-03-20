@@ -1,85 +1,35 @@
-const cloudinary = require('cloudinary').v2;
 const multer = require('multer');
+const { uploadToSupabase } = require('./supabase');
 
-// Configure Cloudinary (safe even without credentials — will fail at upload time)
-cloudinary.config({
-    cloud_name: process.env.CLOUDINARY_CLOUD_NAME || '',
-    api_key: process.env.CLOUDINARY_API_KEY || '',
-    api_secret: process.env.CLOUDINARY_API_SECRET || '',
+// ── Multer: memory storage → then upload to Supabase ─────────────────────────
+
+const upload = multer({
+    storage: multer.memoryStorage(),
+    limits: { fileSize: 5 * 1024 * 1024 }, // 5 MB
+    fileFilter: (_req, file, cb) => {
+        if (file.mimetype.startsWith('image/')) {
+            cb(null, true);
+        } else {
+            cb(new Error('Only JPG and PNG images are allowed'), false);
+        }
+    },
 });
 
-// ── Build the upload middlewares ─────────────────────────────────────────────
-let upload;      // For property photos only (images)
-let uploadDocs;  // For property photos + verification docs (images + PDFs)
+const uploadDocs = multer({
+    storage: multer.memoryStorage(),
+    limits: { fileSize: 10 * 1024 * 1024 }, // 10 MB
+    fileFilter: (_req, file, cb) => {
+        if (file.mimetype.startsWith('image/') || file.mimetype === 'application/pdf') {
+            cb(null, true);
+        } else {
+            cb(new Error('Only images (JPG, PNG) and PDF files are allowed'), false);
+        }
+    },
+});
 
-if (
-    process.env.CLOUDINARY_CLOUD_NAME &&
-    process.env.CLOUDINARY_API_KEY &&
-    process.env.CLOUDINARY_API_SECRET
-) {
-    const { CloudinaryStorage } = require('multer-storage-cloudinary');
+// ── Helper: upload a multer file to Supabase ─────────────────────────────────
+const uploadFile = async (file, folder) => {
+    return uploadToSupabase(file.buffer, file.originalname, folder, file.mimetype);
+};
 
-    // Storage for property photos (images only)
-    const photoStorage = new CloudinaryStorage({
-        cloudinary,
-        params: {
-            folder: 'unistay_properties',
-            allowed_formats: ['jpg', 'jpeg', 'png'],
-            transformation: [{ width: 1200, height: 800, crop: 'limit', quality: 'auto' }],
-        },
-    });
-
-    // Storage for verification docs (images + PDFs)
-    // PDFs use resource_type 'raw' so Cloudinary serves the actual PDF file,
-    // allowing browsers to render it natively in an iframe.
-    const docStorage = new CloudinaryStorage({
-        cloudinary,
-        params: (_req, file) => {
-            const isPdf = file.mimetype === 'application/pdf';
-            return {
-                folder: 'unistay_uploads',
-                resource_type: isPdf ? 'raw' : 'image',
-                ...(isPdf ? {} : { allowed_formats: ['jpg', 'jpeg', 'png'] }),
-            };
-        },
-    });
-
-    upload = multer({
-        storage: photoStorage,
-        limits: { fileSize: 5 * 1024 * 1024 }, // 5 MB
-        fileFilter: (_req, file, cb) => {
-            if (file.mimetype.startsWith('image/')) {
-                cb(null, true);
-            } else {
-                cb(new Error('Only JPG and PNG images are allowed'), false);
-            }
-        },
-    });
-
-    uploadDocs = multer({
-        storage: docStorage,
-        limits: { fileSize: 10 * 1024 * 1024 }, // 10 MB (PDFs can be larger)
-        fileFilter: (_req, file, cb) => {
-            if (file.mimetype.startsWith('image/') || file.mimetype === 'application/pdf') {
-                cb(null, true);
-            } else {
-                cb(new Error('Only images (JPG, PNG) and PDF files are allowed'), false);
-            }
-        },
-    });
-
-    console.log('✅ Cloudinary storage configured (photos + docs)');
-} else {
-    // Fallback: memory storage — uploads won't persist but server boots fine
-    upload = multer({
-        storage: multer.memoryStorage(),
-        limits: { fileSize: 5 * 1024 * 1024 },
-    });
-    uploadDocs = multer({
-        storage: multer.memoryStorage(),
-        limits: { fileSize: 10 * 1024 * 1024 },
-    });
-    console.warn('⚠️  Cloudinary credentials missing — using in-memory storage (uploads will not persist)');
-}
-
-module.exports = { cloudinary, upload, uploadDocs };
+module.exports = { upload, uploadDocs, uploadFile };

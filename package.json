@@ -21,8 +21,8 @@
   },
   "homepage": "https://github.com/Lithira-Sasmitha/UniStay_backend#readme",
   "dependencies": {
+    "@supabase/supabase-js": "^2.99.3",
     "bcryptjs": "^3.0.3",
-    "cloudinary": "^1.41.3",
     "cookie-parser": "^1.4.7",
     "cors": "^2.8.6",
     "dotenv": "^17.3.1",
@@ -32,7 +32,6 @@
     "mongoose": "^9.2.1",
     "morgan": "^1.10.1",
     "multer": "^2.1.0",
-    "multer-storage-cloudinary": "^4.0.0",
     "nodemailer": "^8.0.1",
     "stripe": "^20.4.0"
   },
