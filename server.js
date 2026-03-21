@@ -6,16 +6,22 @@ const morgan = require('morgan');
 const helmet = require('helmet');
 const connectDB = require('./config/db');
 const userRoutes = require('./routes/userRoutes');
+const propertyRoutes = require('./routes/propertyRoutes');
+const bookingRoutes = require('./routes/bookingRoutes');
 const { notFound, errorHandler } = require('./middleware/errorMiddleware');
 
 // Initialize Express
 const app = express();
 
 // Set up CORS - Production ready configuration
+const corsOrigins = process.env.CORS_ORIGINS
+  ? process.env.CORS_ORIGINS.split(',').map(o => o.trim())
+  : ['http://localhost:5173', 'http://localhost:3000'];
+
 app.use(
   cors({
-    origin: ['http://localhost:5173', 'http://localhost:3000'], // Allow Vite and React frontend
-    credentials: true,                                       // Allow sending/receiving cookies
+    origin: corsOrigins,
+    credentials: true,
   })
 );
 
@@ -35,6 +41,8 @@ connectDB().then(() => {
 
 // Mount Routes
 app.use('/api/users', userRoutes);
+app.use('/api/properties', propertyRoutes);
+app.use('/api/bookings', bookingRoutes);
 
 // Root Endpoint
 app.get('/', (req, res) => {
@@ -47,6 +55,54 @@ app.use(errorHandler);
 
 const PORT = process.env.PORT || 5000;
 
-app.listen(PORT, () => {
-  console.log(`Server listening in ${process.env.NODE_ENV || 'development'} mode on port ${PORT}`);
+app.listen(PORT, async () => {
+  console.log('\n========================================');
+  console.log(`  UniStay API — port ${PORT} (${process.env.NODE_ENV || 'development'})`);
+  console.log('========================================\n');
+
+  // ── MongoDB ──
+  try {
+    const dbState = require('mongoose').connection.readyState;
+    // 0=disconnected, 1=connected, 2=connecting, 3=disconnecting
+    if (dbState === 1) {
+      console.log('✅ MongoDB        — connected');
+    } else {
+      console.log('⏳ MongoDB        — connecting...');
+    }
+  } catch { console.log('❌ MongoDB        — not configured'); }
+
+  // ── Supabase Storage ──
+  if (process.env.SUPABASE_URL && process.env.SUPABASE_SERVICE_KEY) {
+    console.log('✅ Supabase       — configured');
+  } else {
+    console.log('❌ Supabase       — SUPABASE_URL or SUPABASE_SERVICE_KEY missing');
+  }
+
+  // ── Stripe ──
+  if (process.env.STRIPE_SECRET_KEY) {
+    console.log('✅ Stripe         — configured');
+  } else {
+    console.log('⚠️  Stripe         — STRIPE_SECRET_KEY missing (payments will return 503)');
+  }
+
+  // ── Email (Nodemailer) ──
+  if (process.env.EMAIL_USER && process.env.EMAIL_PASS) {
+    try {
+      const nodemailer = require('nodemailer');
+      const transporter = nodemailer.createTransport({
+        host: process.env.EMAIL_HOST || 'smtp.gmail.com',
+        port: parseInt(process.env.EMAIL_PORT) || 587,
+        secure: false,
+        auth: { user: process.env.EMAIL_USER, pass: process.env.EMAIL_PASS },
+      });
+      await transporter.verify();
+      console.log('✅ Email (SMTP)   — connected & verified');
+    } catch (err) {
+      console.log(`❌ Email (SMTP)   — connection failed: ${err.message}`);
+    }
+  } else {
+    console.log('❌ Email (SMTP)   — EMAIL_USER or EMAIL_PASS missing');
+  }
+
+  console.log('\n────────────────────────────────────────\n');
 });
