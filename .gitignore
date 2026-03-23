@@ -3,6 +3,14 @@ node_modules/
 package-lock.json
 
 # Environment variables
+.env
+.env.*
+
+# Secrets / credentials
+*.pem
+*.key
+credentials.json
+serviceAccountKey.json
 
 # Logs
 npm-debug.log*
