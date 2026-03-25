@@ -63,6 +63,44 @@ const userSchema = new mongoose.Schema(
       type: String,
       required: [true, 'Please add your phone number'],
     },
+    faculty: {
+      type: String,
+      trim: true,
+    },
+    year: {
+      type: String,
+      enum: ['1st Year', '2nd Year', '3rd Year', '4th Year'],
+    },
+    semester: {
+      type: String,
+      enum: ['1st Semester', '2nd Semester'],
+    },
+    hometown: {
+      type: String,
+      trim: true,
+    },
+    universityEmail: {
+      type: String,
+      trim: true,
+      lowercase: true,
+      unique: true,
+      sparse: true, // Allow multiple nulls for unverified users
+    },
+    isVerified: {
+      type: Boolean,
+      default: false,
+    },
+    otp: {
+      type: String,
+    },
+    otpExpires: {
+      type: Date,
+    },
+    tempEmail: {
+      type: String,
+      trim: true,
+      lowercase: true,
+    },
     refreshToken: {
       type: String,
     },

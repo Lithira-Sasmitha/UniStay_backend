@@ -13,6 +13,8 @@ const {
   deleteUser,
   getAllUsers,
   updateUserByAdmin,
+  sendVerificationOTP,
+  verifyEmailOTP,
 } = require('../controllers/userController');
 
 // Import middlewares
@@ -23,6 +25,10 @@ router.post('/register', registerUser);
 router.post('/login', loginUser);
 router.get('/refresh', refreshToken);
 router.post('/logout', logoutUser);
+
+// Verification routes
+router.post('/send-otp', protect, sendVerificationOTP);
+router.post('/verify-otp', protect, verifyEmailOTP);
 
 // Private profile routes
 router.get('/profile', protect, getUserProfile);
