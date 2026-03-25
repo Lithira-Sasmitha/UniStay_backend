@@ -1,5 +1,6 @@
 const User = require('../models/User');
 const jwt = require('jsonwebtoken');
+const { sendOTP } = require('../utils/emailService');
 
 /**
  * Generate Access Token (Short-lived: 15m)
@@ -86,10 +87,20 @@ const registerUser = async (req, res) => {
         email: user.email,
         role: user.role,
         accessToken,
-        refreshToken, // Added to response body as requested
+        refreshToken,
       });
     }
   } catch (error) {
+    console.error('Registration Error:', error.message);
+    // Handle Mongoose Validation Error
+    if (error.name === 'ValidationError') {
+      const messages = Object.values(error.errors).map(val => val.message);
+      return res.status(400).json({ success: false, message: messages.join(', ') });
+    }
+    // Handle Mongo Duplicate Key Error (NIC, Username, etc)
+    if (error.code === 11000) {
+      return res.status(400).json({ success: false, message: 'Unique field duplication error (NIC or Username already exists)' });
+    }
     res.status(500).json({ success: false, message: error.message });
   }
 };
@@ -127,8 +138,10 @@ const loginUser = async (req, res) => {
         name: user.name,
         email: user.email,
         role: user.role,
+        isVerified: user.isVerified,
+        universityEmail: user.universityEmail,
         accessToken,
-        refreshToken, // Added to response body as requested
+        refreshToken,
       });
     } else {
       res.status(401).json({ success: false, message: 'Invalid email or password' });
@@ -236,6 +249,8 @@ const getUserProfile = async (req, res) => {
           age: user.age,
           nic: user.nic,
           phonenumber: user.phonenumber,
+          universityEmail: user.universityEmail,
+          isVerified: user.isVerified,
         },
       });
     } else {
@@ -386,6 +401,95 @@ const updateUserByAdmin = async (req, res) => {
   }
 };
 
+/**
+ * @desc    Send verification OTP to student email
+ * @route   POST /api/users/send-otp
+ * @access  Private
+ */
+const sendVerificationOTP = async (req, res) => {
+  try {
+    const { email } = req.body;
+    const user = await User.findById(req.user._id);
+
+    // If email provided, use it. Otherwise use current email if valid.
+    const targetEmail = email || user.email;
+
+    if (!targetEmail.toLowerCase().endsWith('@my.sliit.lk')) {
+      return res.status(400).json({ 
+        success: false, 
+        message: 'Only university emails (@my.sliit.lk) are allowed for verification' 
+      });
+    }
+
+    // Check if targetEmail is already taken by another verified user
+    const existingUser = await User.findOne({ email: targetEmail, isVerified: true });
+    if (existingUser && existingUser._id.toString() !== user._id.toString()) {
+      return res.status(400).json({ success: false, message: 'This email is already verified by another account' });
+    }
+
+    const otp = Math.floor(100000 + Math.random() * 900000).toString();
+    const otpExpires = Date.now() + 10 * 60 * 1000; // 10 minutes
+
+    user.otp = otp;
+    user.otpExpires = otpExpires;
+    user.tempEmail = targetEmail; // Store target for verification step
+    await user.save();
+
+    await sendOTP(targetEmail, otp);
+
+    res.json({ success: true, message: `OTP sent successfully to ${targetEmail}` });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+/**
+ * @desc    Verify OTP and set user as verified
+ * @route   POST /api/users/verify-otp
+ * @access  Private
+ */
+const verifyEmailOTP = async (req, res) => {
+  try {
+    const { otp } = req.body;
+    const user = await User.findById(req.user._id);
+
+    if (!user.otp || user.otp !== otp || user.otpExpires < Date.now()) {
+      return res.status(400).json({ success: false, message: 'Invalid or expired OTP' });
+    }
+
+    if (user.tempEmail) {
+      user.universityEmail = user.tempEmail;
+    }
+    user.isVerified = true;
+    user.otp = undefined;
+    user.otpExpires = undefined;
+    user.tempEmail = undefined;
+    await user.save();
+
+    res.json({ success: true, message: 'Email verified successfully! You are now a Verified Student.' });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+/**
+ * @desc    List potential roommates (Verified students without active bookings)
+ * @route   GET /api/roommates
+ * @access  Private (Middlewares will handle checks)
+ */
+const listRoommates = async (req, res) => {
+  try {
+    const roommates = await User.find({
+      _id: { $ne: req.user._id },
+      role: 'student',
+      isVerified: true
+    }).select('name email university address age nic phonenumber');
+    res.json({ success: true, roommates });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+};
+
 module.exports = {
   registerUser,
   loginUser,
@@ -397,4 +501,7 @@ module.exports = {
   deleteUser,
   getAllUsers,
   updateUserByAdmin,
+  sendVerificationOTP,
+  verifyEmailOTP,
+  listRoommates,
 };

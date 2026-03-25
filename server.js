@@ -11,6 +11,7 @@ const connectDB = require('./config/db');
 const userRoutes = require('./routes/userRoutes');
 const propertyRoutes = require('./routes/propertyRoutes');
 const bookingRoutes = require('./routes/bookingRoutes');
+const roommateRoutes = require('./routes/roommateRoutes');
 const { notFound, errorHandler } = require('./middleware/errorMiddleware');
 
 // Initialize Express
@@ -46,6 +47,7 @@ connectDB().then(() => {
 app.use('/api/users', userRoutes);
 app.use('/api/properties', propertyRoutes);
 app.use('/api/bookings', bookingRoutes);
+app.use('/api/roommates', roommateRoutes);
 
 // Root Endpoint
 app.get('/', (req, res) => {
