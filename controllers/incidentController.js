@@ -1,0 +1,145 @@
+const Incident = require('../models/Incident');
+const { uploadToSupabase } = require('../config/supabase');
+
+// @desc    Create a new incident report
+// @route   POST /api/incidents
+// @access  Private (Student)
+exports.createIncident = async (req, res, next) => {
+  try {
+    const { propertyId, title, category, severity, description } = req.body;
+
+    // Validate required fields
+    if (!propertyId || !title || !category || !severity || !description) {
+      return res.status(400).json({ success: false, message: 'Please provide all required fields' });
+    }
+
+    let photoUrl = '';
+    // Handle optional file upload
+    if (req.file) {
+      try {
+        const uploadResult = await uploadToSupabase(
+          req.file.buffer, 
+          req.file.originalname, 
+          'incidents', 
+          req.file.mimetype
+        );
+        photoUrl = uploadResult.url;
+      } catch (uploadError) {
+        console.error('File upload failed:', uploadError);
+        // Continue creating incident even if photo fails, or return error
+        return res.status(500).json({ success: false, message: 'Failed to upload photo evidence' });
+      }
+    }
+
+    const incident = await Incident.create({
+      student: req.user._id,
+      property: propertyId,
+      title,
+      category,
+      severity,
+      description,
+      photoUrl,
+      status: 'open'
+    });
+
+    res.status(201).json({
+      success: true,
+      data: incident,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+// @desc    Get student's own reported incidents
+// @route   GET /api/incidents/me
+// @access  Private (Student)
+exports.getMyIncidents = async (req, res, next) => {
+  try {
+    const incidents = await Incident.find({ student: req.user._id })
+      .populate('property', 'title address')
+      .sort('-createdAt');
+      
+    res.status(200).json({
+      success: true,
+      data: incidents,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+// @desc    Get all incidents (Admin / Owner filtering)
+// @route   GET /api/incidents
+// @access  Private (Admin / Owner)
+exports.getIncidents = async (req, res, next) => {
+  try {
+    // Basic filter logic (if it's an owner, only show their properties - advanced logic needed based on auth role)
+    // For now, let's keep it simple: Super Admin sees all
+    const filter = {};
+    if (req.query.propertyId) {
+        filter.property = req.query.propertyId;
+    }
+    
+    // If it's a Boarding Owner, they should only see incidents for properties they own
+    // This requires looking up their properties first or doing a join.
+    // For simplicity in this endpoint right now:
+    if (req.user.role === 'boarding_owner') {
+       const properties = await require('../models/Property').find({ owner: req.user._id });
+       const propertyIds = properties.map(p => p._id);
+       filter.property = { $in: propertyIds };
+    }
+
+    const incidents = await Incident.find(filter)
+      .populate('student', 'name email phone')
+      .populate('property', 'title owner')
+      .sort('-createdAt');
+      
+    res.status(200).json({
+      success: true,
+      data: incidents,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+// @desc    Update incident status
+// @route   PATCH /api/incidents/:id/status
+// @access  Private (Admin / Owner)
+exports.updateIncidentStatus = async (req, res, next) => {
+  try {
+    const { status } = req.body;
+    const validStatuses = ['open', 'investigating', 'resolved', 'rejected'];
+    
+    if (!validStatuses.includes(status)) {
+        return res.status(400).json({ success: false, message: 'Invalid status' });
+    }
+
+    const incident = await Incident.findById(req.params.id);
+    if (!incident) {
+      return res.status(404).json({ success: false, message: 'Incident not found' });
+    }
+    
+    // Authorization check
+    if (req.user.role === 'boarding_owner') {
+        // Must ensure the incident belongs to a property they own
+        const property = await require('../models/Property').findById(incident.property);
+        if (property.owner.toString() !== req.user._id.toString()) {
+            return res.status(403).json({ success: false, message: 'Not authorized' });
+        }
+    } else if (req.user.role !== 'super_admin') {
+        return res.status(403).json({ success: false, message: 'Not authorized' });
+    }
+
+    incident.status = status;
+    await incident.save();
+
+    res.status(200).json({
+      success: true,
+      data: incident,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
