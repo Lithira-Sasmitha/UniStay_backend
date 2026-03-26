@@ -84,7 +84,7 @@ exports.getIncidents = async (req, res, next) => {
     // If it's a Boarding Owner, they should only see incidents for properties they own
     // This requires looking up their properties first or doing a join.
     // For simplicity in this endpoint right now:
-    if (req.user.role === 'boarding_owner') {
+    if (req.user.role === 'boardingowner') {
        const properties = await require('../models/Property').find({ owner: req.user._id });
        const propertyIds = properties.map(p => p._id);
        filter.property = { $in: propertyIds };
