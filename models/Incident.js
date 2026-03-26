@@ -35,9 +35,20 @@ const incidentSchema = new mongoose.Schema(
       enum: ['open', 'investigating', 'resolved', 'rejected'],
       default: 'open',
     },
+    adminNotes: {
+      type: String,
+      default: '',
+    },
     photoUrl: {
       type: String,
       default: '',
+    },
+    ownerResponse: {
+      type: String,
+      default: '',
+    },
+    ownerRespondedAt: {
+      type: Date,
     },
   },
   { timestamps: true }
