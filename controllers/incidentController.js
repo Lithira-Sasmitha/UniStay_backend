@@ -92,7 +92,7 @@ exports.getIncidents = async (req, res, next) => {
 
     const incidents = await Incident.find(filter)
       .populate('student', 'name email phone')
-      .populate('property', 'title owner')
+      .populate('property', 'name owner')
       .sort('-createdAt');
       
     res.status(200).json({
@@ -136,6 +136,9 @@ exports.updateIncidentStatus = async (req, res, next) => {
     if (adminNotes !== undefined) {
       incident.adminNotes = adminNotes;
     }
+    
+    await incident.save();
+    
     res.status(200).json({
       success: true,
       data: incident,
