@@ -3,7 +3,8 @@ const {
   createIncident,
   getMyIncidents,
   getIncidents,
-  updateIncidentStatus
+  updateIncidentStatus,
+  addOwnerResponse
 } = require('../controllers/incidentController');
 const { protect, authorize } = require('../middleware/authMiddleware');
 const multer = require('multer');
@@ -19,5 +20,6 @@ router.get('/me', protect, authorize('student'), getMyIncidents);
 // Admin/Owner routes
 router.get('/', protect, authorize('super_admin', 'boarding_owner'), getIncidents);
 router.patch('/:id/status', protect, authorize('super_admin', 'boarding_owner'), updateIncidentStatus);
+router.patch('/:id/owner-response', protect, authorize('boarding_owner'), addOwnerResponse);
 
 module.exports = router;

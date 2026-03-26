@@ -109,9 +109,9 @@ exports.getIncidents = async (req, res, next) => {
 // @access  Private (Admin / Owner)
 exports.updateIncidentStatus = async (req, res, next) => {
   try {
-    const { status } = req.body;
+    const { status, adminNotes } = req.body;
     const validStatuses = ['open', 'investigating', 'resolved', 'rejected'];
-    
+
     if (!validStatuses.includes(status)) {
         return res.status(400).json({ success: false, message: 'Invalid status' });
     }
@@ -120,19 +120,60 @@ exports.updateIncidentStatus = async (req, res, next) => {
     if (!incident) {
       return res.status(404).json({ success: false, message: 'Incident not found' });
     }
-    
+
     // Authorization check
-    if (req.user.role === 'boarding_owner') {
+    if (req.user.role === 'boardingowner') {
         // Must ensure the incident belongs to a property they own
         const property = await require('../models/Property').findById(incident.property);
-        if (property.owner.toString() !== req.user._id.toString()) {
+        if (property && property.owner.toString() !== req.user._id.toString()) {
             return res.status(403).json({ success: false, message: 'Not authorized' });
         }
-    } else if (req.user.role !== 'super_admin') {
+    } else if (req.user.role !== 'superadmin') {
         return res.status(403).json({ success: false, message: 'Not authorized' });
     }
 
     incident.status = status;
+    if (adminNotes !== undefined) {
+      incident.adminNotes = adminNotes;
+    }
+    res.status(200).json({
+      success: true,
+      data: incident,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+// @desc    Add owner response to incident
+// @route   PATCH /api/incidents/:id/owner-response
+// @access  Private (Boarding Owner)
+exports.addOwnerResponse = async (req, res, next) => {
+  try {
+    const { ownerResponse } = req.body;
+
+    if (!ownerResponse) {
+      return res.status(400).json({ success: false, message: 'Please provide a response' });
+    }
+
+    const incident = await Incident.findById(req.params.id);
+    if (!incident) {
+      return res.status(404).json({ success: false, message: 'Incident not found' });
+    }
+
+    // Verify ownership
+    const property = await require('../models/Property').findById(incident.property);
+    if (!property || property.owner.toString() !== req.user._id.toString()) {
+      return res.status(403).json({ success: false, message: 'Not authorized to respond to this incident' });
+    }
+
+    if (incident.ownerResponse) {
+      return res.status(400).json({ success: false, message: 'Response already submitted' });
+    }
+
+    incident.ownerResponse = ownerResponse;
+    incident.ownerRespondedAt = Date.now();
+    
     await incident.save();
 
     res.status(200).json({
