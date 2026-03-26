@@ -24,7 +24,7 @@ const {
     rejectProperty,
     removeOccupant,
 } = require('../controllers/propertyController');
-
+const { getPropertySafetyStatus } = require('../controllers/incidentController');
 // ── Public Routes ────────────────────────────────────────────────────
 router.get('/public', getPublicListings);
 
@@ -148,7 +148,8 @@ router.get(
     authorize(['boardingowner']),
     getBoardingArrangeView
 );
-
+// ── Property Safety ─────────────────────────────────────────────────────
+router.get('/:propertyId/safety', getPropertySafetyStatus);
 // ── Public: Detail by ID (last to avoid conflicts) ───────────────────
 router.get('/:propertyId', getListingById);
 

@@ -184,3 +184,42 @@ exports.addOwnerResponse = async (req, res, next) => {
     next(error);
   }
 };
+
+// @desc    Get safety status and badge for a property
+// @route   GET /api/properties/:id/safety
+// @access  Public
+exports.getPropertySafetyStatus = async (req, res, next) => {
+  try {
+    const propertyId = req.params.propertyId || req.params.id;
+    const incidents = await Incident.find({ property: propertyId, status: { $ne: 'rejected' } });
+
+    let level = 'safe';
+    let unresolvedIncidents = incidents.filter(inc => inc.status === 'open' || inc.status === 'investigating');
+    
+    let activeCount = unresolvedIncidents.length;
+
+    if (activeCount > 0) {
+        const hasHighSeverity = unresolvedIncidents.some(inc => inc.severity === 'High');
+        if (hasHighSeverity || activeCount >= 3) {
+            level = 'review'; // Under Review
+        } else {
+            level = 'caution'; // Caution
+        }
+    }
+
+    // Get last updated status time (latest incident update)
+    let lastUpdated = incidents.length > 0 ? new Date(Math.max(...incidents.map(i => new Date(i.updatedAt).getTime()))) : null;
+
+    res.status(200).json({
+        success: true,
+        data: {
+          level,
+          activeCount,
+          lastUpdated,
+          totalReported: incidents.length
+        }
+    });
+  } catch (error) {
+    next(error);
+  }
+};
