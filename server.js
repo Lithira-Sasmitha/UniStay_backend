@@ -1,3 +1,6 @@
+const dns = require('dns');
+dns.setServers(['1.1.1.1', '8.8.8.8']);
+
 require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
@@ -8,6 +11,7 @@ const connectDB = require('./config/db');
 const userRoutes = require('./routes/userRoutes');
 const propertyRoutes = require('./routes/propertyRoutes');
 const bookingRoutes = require('./routes/bookingRoutes');
+const roommateRoutes = require('./routes/roommateRoutes');
 const { notFound, errorHandler } = require('./middleware/errorMiddleware');
 
 // Initialize Express
