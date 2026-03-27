@@ -50,25 +50,6 @@ const incidentSchema = new mongoose.Schema(
     ownerRespondedAt: {
       type: Date,
     },
-    statusHistory: [
-      {
-        status: String,
-        action: String,
-        note: String,
-        updatedBy: {
-          type: mongoose.Schema.Types.ObjectId,
-          ref: 'User',
-        },
-        actorType: {
-          type: String,
-          enum: ['student', 'admin', 'owner'],
-        },
-        timestamp: {
-          type: Date,
-          default: Date.now,
-        },
-      },
-    ],
   },
   { timestamps: true }
 );
