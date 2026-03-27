@@ -39,15 +39,7 @@ exports.createIncident = async (req, res, next) => {
       severity,
       description,
       photoUrl,
-      status: 'open',
-      statusHistory: [{
-        status: 'open',
-        action: 'Incident Reported',
-        note: 'Initial report submitted by student.',
-        updatedBy: req.user._id,
-        actorType: 'student',
-        timestamp: new Date()
-      }]
+      status: 'open'
     });
 
     res.status(201).json({
@@ -66,7 +58,6 @@ exports.getMyIncidents = async (req, res, next) => {
   try {
     const incidents = await Incident.find({ student: req.user._id })
       .populate('property', 'title address')
-      .populate('statusHistory.updatedBy', 'name role')
       .sort('-createdAt');
       
     res.status(200).json({
@@ -102,7 +93,6 @@ exports.getIncidents = async (req, res, next) => {
     const incidents = await Incident.find(filter)
       .populate('student', 'name email phone')
       .populate('property', 'name owner')
-      .populate('statusHistory.updatedBy', 'name role')
       .sort('-createdAt');
       
     res.status(200).json({
@@ -147,27 +137,11 @@ exports.updateIncidentStatus = async (req, res, next) => {
       incident.adminNotes = adminNotes;
     }
     
-    // Add to history
-    incident.statusHistory.push({
-      status: status,
-      action: status === 'investigating' ? 'Under Investigation' : (status === 'resolved' ? 'Resolved' : 'Rejected'),
-      note: adminNotes || '',
-      updatedBy: req.user._id,
-      actorType: 'admin',
-      timestamp: new Date()
-    });
-    
     await incident.save();
-    
-    // Fetch populated version to include history with names
-    const updatedIncident = await Incident.findById(incident._id)
-      .populate('student', 'name email phone')
-      .populate('property', 'name owner')
-      .populate('statusHistory.updatedBy', 'name role');
     
     res.status(200).json({
       success: true,
-      data: updatedIncident,
+      data: incident,
     });
   } catch (error) {
     next(error);
@@ -203,27 +177,11 @@ exports.addOwnerResponse = async (req, res, next) => {
     incident.ownerResponse = ownerResponse;
     incident.ownerRespondedAt = Date.now();
     
-    // Add to history
-    incident.statusHistory.push({
-      status: incident.status, // Keep current status
-      action: 'Owner Responded',
-      note: ownerResponse,
-      updatedBy: req.user._id,
-      actorType: 'owner',
-      timestamp: new Date()
-    });
-    
     await incident.save();
-
-    // Fetch populated version to include history with names
-    const updatedIncident = await Incident.findById(incident._id)
-      .populate('student', 'name email phone')
-      .populate('property', 'name owner')
-      .populate('statusHistory.updatedBy', 'name role');
 
     res.status(200).json({
       success: true,
-      data: updatedIncident,
+      data: incident,
     });
   } catch (error) {
     next(error);
