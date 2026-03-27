@@ -1,8 +1,11 @@
 const Booking = require('../models/Booking');
 const Room = require('../models/Room');
 const Property = require('../models/Property');
+const Review = require('../models/Review');
 const stripe = require('../config/stripe');
 const { sendBookingEmail } = require('../config/emailService');
+
+const REVIEW_ELIGIBLE_STATUSES = ['approved', 'confirmed', 'completed'];
 
 // ──────────────────────────────────────────────────────────────────────
 // STUDENT ENDPOINTS
@@ -87,8 +90,91 @@ const getStudentBookings = async (req, res) => {
             .populate('property', 'name address photos trustBadge owner')
             .sort('-createdAt');
 
-        res.json({ success: true, bookings });
+        const bookingIds = bookings.map((b) => b._id);
+        const reviews = await Review.find({ booking: { $in: bookingIds } })
+            .select('booking rating reviewText createdAt');
+
+        const reviewMap = new Map(
+            reviews.map((r) => [r.booking.toString(), r.toObject()])
+        );
+
+        const enrichedBookings = bookings.map((booking) => {
+            const bookingObj = booking.toObject();
+            const review = reviewMap.get(booking._id.toString()) || null;
+            const hasReviewed = Boolean(review);
+            const canReview = REVIEW_ELIGIBLE_STATUSES.includes(booking.status) && !hasReviewed;
+
+            return {
+                ...bookingObj,
+                review,
+                hasReviewed,
+                canReview,
+            };
+        });
+
+        res.json({ success: true, bookings: enrichedBookings });
     } catch (error) {
+        res.status(500).json({ success: false, message: error.message });
+    }
+};
+
+/**
+ * @desc    Submit a review for a booking
+ * @route   POST /api/bookings/:bookingId/review
+ * @access  Private/Student
+ */
+const createBookingReview = async (req, res) => {
+    try {
+        const { rating, reviewText } = req.body;
+        const numericRating = Number(rating);
+        const cleanedText = typeof reviewText === 'string' ? reviewText.trim() : '';
+
+        if (!Number.isInteger(numericRating) || numericRating < 1 || numericRating > 5) {
+            return res.status(400).json({ success: false, message: 'Rating must be an integer between 1 and 5' });
+        }
+        if (cleanedText.length < 20) {
+            return res.status(400).json({ success: false, message: 'Review text must be at least 20 characters' });
+        }
+
+        const booking = await Booking.findById(req.params.bookingId);
+        if (!booking) return res.status(404).json({ success: false, message: 'Booking not found' });
+
+        if ((booking.student._id || booking.student).toString() !== req.user._id.toString()) {
+            return res.status(403).json({ success: false, message: 'Not authorized' });
+        }
+
+        if (!REVIEW_ELIGIBLE_STATUSES.includes(booking.status)) {
+            return res.status(400).json({
+                success: false,
+                message: 'Reviews are allowed only for approved/completed bookings',
+            });
+        }
+
+        const existingReview = await Review.findOne({ booking: booking._id });
+        if (existingReview) {
+            return res.status(400).json({ success: false, message: 'You already submitted a review for this booking' });
+        }
+
+        const review = await Review.create({
+            booking: booking._id,
+            property: booking.property,
+            student: req.user._id,
+            rating: numericRating,
+            reviewText: cleanedText,
+        });
+
+        const populatedReview = await Review.findById(review._id)
+            .populate('student', 'name');
+
+        res.status(201).json({
+            success: true,
+            message: 'Review submitted successfully',
+            review: populatedReview,
+        });
+    } catch (error) {
+        if (error?.code === 11000) {
+            return res.status(400).json({ success: false, message: 'You already submitted a review for this booking' });
+        }
         res.status(500).json({ success: false, message: error.message });
     }
 };
@@ -372,6 +458,7 @@ const rejectBooking = async (req, res) => {
 module.exports = {
     requestBooking,
     getStudentBookings,
+    createBookingReview,
     createPaymentIntent,
     confirmPayment,
     cancelBooking,
