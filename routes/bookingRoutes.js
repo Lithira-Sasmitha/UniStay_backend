@@ -4,6 +4,7 @@ const { protect, authorize } = require('../middleware/authMiddleware');
 const {
     requestBooking,
     getStudentBookings,
+    createBookingReview,
     createPaymentIntent,
     confirmPayment,
     cancelBooking,
@@ -15,6 +16,7 @@ const {
 // ── Student Routes ───────────────────────────────────────────────────
 router.post('/', protect, authorize(['student']), requestBooking);
 router.get('/my-bookings', protect, authorize(['student']), getStudentBookings);
+router.post('/:bookingId/review', protect, authorize(['student']), createBookingReview);
 router.post('/:bookingId/payment-intent', protect, authorize(['student']), createPaymentIntent);
 router.patch('/:bookingId/confirm-payment', protect, authorize(['student']), confirmPayment);
 router.patch('/:bookingId/cancel', protect, authorize(['student']), cancelBooking);
