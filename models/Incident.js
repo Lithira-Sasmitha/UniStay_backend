@@ -50,6 +50,12 @@ const incidentSchema = new mongoose.Schema(
     ownerRespondedAt: {
       type: Date,
     },
+    investigationStartedAt: {
+      type: Date,
+    },
+    resolvedAt: {
+      type: Date,
+    },
   },
   { timestamps: true }
 );

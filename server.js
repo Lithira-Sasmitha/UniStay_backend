@@ -48,6 +48,7 @@ app.use('/api/users', userRoutes);
 app.use('/api/properties', propertyRoutes);
 app.use('/api/bookings', bookingRoutes);
 app.use('/api/incidents', require('./routes/incidentRoutes'));
+app.use('/api/safety', require('./routes/safetyRoutes'));
 
 // Root Endpoint
 app.get('/', (req, res) => {
