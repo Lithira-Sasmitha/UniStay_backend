@@ -579,6 +579,20 @@ const setTrustBadge = async (req, res) => {
         }
         await property.save();
 
+        // Email the owner on verification
+        if (badge !== 'unverified') {
+            const populatedProp = await Property.findById(property._id).populate('owner', 'name email');
+            if (populatedProp.owner?.email) {
+                await sendBookingEmail(
+                    populatedProp.owner.email,
+                    'Property Verified - UniStay',
+                    `<p>Hello <strong>${populatedProp.owner.name}</strong>,</p>
+                     <p>Congratulations! Your property <strong>${property.name}</strong> has been verified and is now live on UniStay with a <strong>${badge}</strong> trust badge.</p>
+                     <p>Students can now find and book your listing.</p>`
+                );
+            }
+        }
+
         res.json({
             success: true,
             message: `Trust badge set to ${badge}`,
