@@ -1,6 +1,7 @@
 const Property = require('../models/Property');
 const Room = require('../models/Room');
 const Booking = require('../models/Booking');
+const Review = require('../models/Review');
 const { uploadFile } = require('../config/cloudinary');
 const { deleteFromSupabase } = require('../config/supabase');
 const { sendBookingEmail } = require('../config/emailService');
@@ -461,7 +462,29 @@ const getPublicListings = async (req, res) => {
             }
         }
 
-        res.json({ success: true, properties: results });
+        const propertyIds = results.map((property) => property._id);
+        const reviews = await Review.find({ property: { $in: propertyIds } })
+            .select('property rating');
+
+        const statsMap = new Map();
+        reviews.forEach((review) => {
+            const key = review.property.toString();
+            const current = statsMap.get(key) || { total: 0, count: 0 };
+            current.total += review.rating;
+            current.count += 1;
+            statsMap.set(key, current);
+        });
+
+        const propertiesWithReviewStats = results.map((property) => {
+            const stats = statsMap.get(property._id.toString()) || { total: 0, count: 0 };
+            return {
+                ...property,
+                reviewCount: stats.count,
+                averageRating: stats.count > 0 ? Number((stats.total / stats.count).toFixed(1)) : null,
+            };
+        });
+
+        res.json({ success: true, properties: propertiesWithReviewStats });
     } catch (error) {
         res.status(500).json({ success: false, message: error.message });
     }
@@ -480,8 +503,25 @@ const getListingById = async (req, res) => {
         if (!property) return res.status(404).json({ success: false, message: 'Property not found' });
 
         const rooms = await Room.find({ property: property._id });
+        const reviews = await Review.find({ property: property._id })
+            .populate('student', 'name')
+            .sort('-createdAt');
 
-        res.json({ success: true, property: { ...property.toObject(), rooms } });
+        const reviewCount = reviews.length;
+        const averageRating = reviewCount > 0
+            ? Number((reviews.reduce((sum, review) => sum + review.rating, 0) / reviewCount).toFixed(1))
+            : null;
+
+        res.json({
+            success: true,
+            property: {
+                ...property.toObject(),
+                rooms,
+                reviews,
+                reviewCount,
+                averageRating,
+            },
+        });
     } catch (error) {
         res.status(500).json({ success: false, message: error.message });
     }

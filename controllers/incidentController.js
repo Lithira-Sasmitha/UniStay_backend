@@ -1,5 +1,6 @@
 const Incident = require('../models/Incident');
 const { uploadToSupabase } = require('../config/supabase');
+const { calculateRiskTrend } = require('../utils/safetyGovernance');
 
 // @desc    Create a new incident report
 // @route   POST /api/incidents
@@ -41,6 +42,9 @@ exports.createIncident = async (req, res, next) => {
       photoUrl,
       status: 'open'
     });
+
+    // Recalculate risk trend for this property
+    await calculateRiskTrend(propertyId);
 
     res.status(201).json({
       success: true,
@@ -104,6 +108,37 @@ exports.getIncidents = async (req, res, next) => {
   }
 };
 
+// @desc    Get single incident
+// @route   GET /api/incidents/:id
+// @access  Private
+exports.getIncidentById = async (req, res, next) => {
+  try {
+    const incident = await Incident.findById(req.params.id)
+      .populate('student', 'name email phone')
+      .populate('property', 'name address photos owner');
+
+    if (!incident) {
+      return res.status(404).json({ success: false, message: 'Incident not found' });
+    }
+
+    // Auth check
+    const isStudent = req.user.role === 'student' && incident.student._id.toString() === req.user._id.toString();
+    const isAdmin = req.user.role === 'superadmin';
+    const isOwner = req.user.role === 'boardingowner' && incident.property.owner.toString() === req.user._id.toString();
+
+    if (!isStudent && !isAdmin && !isOwner) {
+      return res.status(403).json({ success: false, message: 'Not authorized to view this incident' });
+    }
+
+    res.status(200).json({
+      success: true,
+      data: incident,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
 // @desc    Update incident status
 // @route   PATCH /api/incidents/:id/status
 // @access  Private (Admin / Owner)
@@ -136,8 +171,17 @@ exports.updateIncidentStatus = async (req, res, next) => {
     if (adminNotes !== undefined) {
       incident.adminNotes = adminNotes;
     }
+
+    if (status === 'investigating' && !incident.investigationStartedAt) {
+      incident.investigationStartedAt = Date.now();
+    } else if (status === 'resolved' && !incident.resolvedAt) {
+      incident.resolvedAt = Date.now();
+    }
     
     await incident.save();
+    
+    // Recalculate risk trend for property when incident status changes
+    await calculateRiskTrend(incident.property);
     
     res.status(200).json({
       success: true,

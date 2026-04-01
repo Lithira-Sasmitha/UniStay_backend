@@ -3,6 +3,7 @@ const {
   createIncident,
   getMyIncidents,
   getIncidents,
+  getIncidentById,
   updateIncidentStatus,
   addOwnerResponse
 } = require('../controllers/incidentController');
@@ -16,6 +17,7 @@ const upload = multer({ storage: multer.memoryStorage() });
 // Students reporting or getting their own
 router.post('/', protect, authorize(['student']), upload.single('photo'), createIncident);
 router.get('/me', protect, authorize(['student']), getMyIncidents);
+router.get('/:id', protect, getIncidentById);
 
 // Admin/Owner routes
 router.get('/', protect, authorize(['superadmin', 'boardingowner']), getIncidents);
