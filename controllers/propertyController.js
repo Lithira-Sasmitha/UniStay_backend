@@ -613,10 +613,8 @@ const setTrustBadge = async (req, res) => {
         property.badgeMessage = badgeMessage || '';
         property.verificationStatus = badge === 'unverified' ? 'pending' : 'verified';
         property.rejectionReason = ''; // Clear any previous rejection
-        // Ensure verified properties are visible in public listings
-        if (badge !== 'unverified') {
-            property.isActive = true;
-        }
+        // Verified → make active; unverified → deactivate so it leaves public listings
+        property.isActive = badge !== 'unverified';
         await property.save();
 
         // Email the owner on verification
@@ -692,14 +690,31 @@ const updateProperty = async (req, res) => {
         if (address) property.address = address;
         if (description) property.description = description;
 
-        // If property was rejected, re-submit sets it back to pending
-        if (property.verificationStatus === 'rejected') {
+        // Upload any new verification docs and replace existing ones
+        for (const docKey of ['nicPhoto', 'utilityBill', 'policeReport']) {
+            if (req.files?.[docKey]?.[0]) {
+                // Delete old doc from storage if it exists
+                const oldDoc = property.verificationDocs?.[docKey];
+                if (oldDoc?.publicId) {
+                    try { await deleteFromSupabase(oldDoc.publicId); } catch (_) {}
+                }
+                const result = await uploadFile(req.files[docKey][0], 'unistay_docs');
+                property.verificationDocs[docKey] = { url: result.url, publicId: result.filePath };
+            }
+        }
+
+        // Any edit by the owner always requires re-verification
+        // - Verified property: drop back to pending + deactivate so changes aren't live until admin re-verifies
+        // - Rejected/unverified: clear rejection reason and queue for re-review
+        if (req.user.role === 'boardingowner') {
             property.verificationStatus = 'pending';
+            property.trustBadge = 'unverified';
             property.rejectionReason = '';
+            property.isActive = false;
         }
 
         await property.save();
-        res.json({ success: true, message: 'Property updated', property });
+        res.json({ success: true, message: 'Property updated and submitted for re-verification', property });
     } catch (error) {
         res.status(500).json({ success: false, message: error.message });
     }
