@@ -83,6 +83,11 @@ router.put(
     '/:propertyId',
     protect,
     authorize(['boardingowner', 'superadmin']),
+    uploadDocs.fields([
+        { name: 'nicPhoto', maxCount: 1 },
+        { name: 'utilityBill', maxCount: 1 },
+        { name: 'policeReport', maxCount: 1 },
+    ]),
     updateProperty
 );
 router.delete(
