@@ -11,11 +11,13 @@ const {
     getOwnerBookings,
     approveBooking,
     rejectBooking,
+    getMyBoarding,
 } = require('../controllers/bookingController');
 
 // ── Student Routes ───────────────────────────────────────────────────
 router.post('/', protect, authorize(['student']), requestBooking);
 router.get('/my-bookings', protect, authorize(['student']), getStudentBookings);
+router.get('/my-boarding', protect, authorize(['student']), getMyBoarding);
 router.post('/:bookingId/review', protect, authorize(['student']), createBookingReview);
 router.post('/:bookingId/payment-intent', protect, authorize(['student']), createPaymentIntent);
 router.patch('/:bookingId/confirm-payment', protect, authorize(['student']), confirmPayment);
