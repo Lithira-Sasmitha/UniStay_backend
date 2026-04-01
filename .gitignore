@@ -3,8 +3,6 @@ node_modules/
 package-lock.json
 
 # Environment variables
-.env
-.env.*
 
 # Secrets / credentials
 *.pem
@@ -29,3 +27,5 @@ Thumbs.db
 dist/
 build/
 config.bat
+temp_auto_push.bat
+temp_interactive_push.bat
