@@ -59,15 +59,14 @@ const propertySchema = new mongoose.Schema(
             type: String,
             default: '',
         },
-        riskTrend: {
+        safetyStatus: {
             type: String,
-            enum: ['Low Risk', 'Stable Risk', 'Increasing'],
-            default: 'Low Risk',
+            enum: ['Safe', 'Caution', 'Under Safety Review'],
+            default: 'Safe',
         },
-        riskPattern: {
-            type: String,
-            default: '',
-        },
+        activeAlerts: [{
+            type: String
+        }],
         lastRiskEvaluation: {
             type: Date,
             default: Date.now,

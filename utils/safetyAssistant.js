@@ -7,39 +7,31 @@ const generateSafetyResponse = (question, propertyData) => {
     const { 
         name,
         trustBadge = 'unverified', 
-        riskTrend = 'Low Risk', 
-        activeIncidentCount = 0, 
+        safetyStatus = 'Safe',
+        activeAlerts = [],
+        activeIncidentCount = 0,
         highSeverityCount = 0,
-        categories = [] 
+        categories = []
     } = propertyData;
 
     // 1. Safety Status / "Is it safe?"
     if (q.includes('safe') || q.includes('security') || q.includes('condition')) {
-        if (trustBadge === 'gold') {
-            return `${name} is Gold Verified, which is our highest safety tier with complete documentation and zero critical risks.`;
+        if (safetyStatus === 'Under Safety Review') {
+            return `We advise caution. ${name} is currently "Under Safety Review" due to high-severity or multiple unresolved incidents.`;       
         }
-        if (riskTrend === 'Increasing') {
-            return `We advise caution. ${name} currently shows an increasing safety risk trend due to ${activeIncidentCount} recent unresolved reports.`;
+        if (safetyStatus === 'Caution') {
+            return `This property has a "Caution" status. There are ${activeIncidentCount} active safety incidents being monitored.`;
         }
-        if (activeIncidentCount > 0) {
-            return `This property is currently under "Stable Risk". There are ${activeIncidentCount} active safety incidents being monitored.`;
-        }
-        return `Based on our data, ${name} is considered safe with a ${trustBadge} trust rating and no active incident reports.`;
+        return `Based on our data, ${name} is considered "Safe" with a ${trustBadge} trust rating and no active incident reports.`;
     }
 
     // 2. "Why" / Under Review
-    if (q.includes('why') || q.includes('reason') || q.includes('review')) {
-        if (activeIncidentCount === 0) {
+    if (q.includes('why') || q.includes('reason') || q.includes('review')) {    
+        if (activeIncidentCount === 0 && safetyStatus === 'Safe') {
             return "This property is not currently under review and has a clean safety record.";
         }
-        let reason = `There are ${activeIncidentCount} active incidents.`;
-        if (highSeverityCount > 0) {
-            reason += ` This includes ${highSeverityCount} high-severity issue that requires investigation.`;
-        }
-        if (riskTrend === 'Increasing') {
-            reason += " The frequency of reports has increased significantly this week.";
-        }
-        return reason;
+        let alerts = activeAlerts.length > 0 ? activeAlerts.join(' and ') : `There are ${activeIncidentCount} active incidents`;
+        return `The current status is due to: ${alerts}.`;
     }
 
     // 3. "What issues" / Incident Summary

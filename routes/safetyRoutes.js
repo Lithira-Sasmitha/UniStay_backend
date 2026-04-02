@@ -24,17 +24,18 @@ router.post('/chat', protect, async (req, res, next) => {
         // Gather real incident data for the property
         const activeIncidents = await Incident.find({
             property: propertyId,
-            status: { $in: ['open', 'investigating'] }
+            status: { $in: ['Open', 'Under Investigation'] }
         });
 
         // Prepare structured data for assistant
         const propertyData = {
             name: property.name,
             trustBadge: property.trustBadge,
-            riskTrend: property.riskTrend,
+            safetyStatus: property.safetyStatus,
+            activeAlerts: property.activeAlerts,
             activeIncidentCount: activeIncidents.length,
             highSeverityCount: activeIncidents.filter(i => i.severity === 'High').length,
-            categories: [...new Set(activeIncidents.map(i => i.category))]
+            categories: [...new Set(activeIncidents.map(i => i.category))]      
         };
 
         const response = generateSafetyResponse(message, propertyData);
