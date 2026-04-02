@@ -206,10 +206,10 @@ exports.updateIncidentStatus = async (req, res, next) => {
 // @access  Private (Boarding Owner)
 exports.addOwnerResponse = async (req, res, next) => {
   try {
-    const { ownerResponse } = req.body;
+    const { ownerResponse, safetyActions, safetyScore } = req.body;
 
-    if (!ownerResponse) {
-      return res.status(400).json({ success: false, message: 'Please provide a response' });
+    if (!ownerResponse && !safetyActions) {
+      return res.status(400).json({ success: false, message: 'Please provide a response or select safety actions.' });
     }
 
     const incident = await Incident.findById(req.params.id);
@@ -223,18 +223,20 @@ exports.addOwnerResponse = async (req, res, next) => {
       return res.status(403).json({ success: false, message: 'Not authorized to respond to this incident' });
     }
 
-    if (incident.ownerResponse) {
-      return res.status(400).json({ success: false, message: 'Response already submitted' });
+    if (incident.ownerResponse || incident.ownerRespondedAt) {
+      return res.status(400).json({ success: false, message: 'Safety improvement plan already submitted for this incident.' });
     }
 
-    incident.ownerResponse = ownerResponse;
+    incident.ownerResponse = ownerResponse || '';
+    incident.safetyActions = safetyActions || { investigated: false, fixedIssue: false, installedSecurity: false, monitoring: false };
+    incident.safetyScore = safetyScore || 0;
     incident.ownerRespondedAt = Date.now();
-    
+
     incident.auditLog.push({
-      action: 'Owner Responded',
+      action: 'Safety Improvement Deployed',
       performedBy: req.user._id,
       role: req.user.role,
-      details: 'Property owner submitted a response to the incident'
+      details: 'Property owner submitted a reactive safety plan with an improvement score of ' + (safetyScore || 0) + '%'
     });
     
     await incident.save();

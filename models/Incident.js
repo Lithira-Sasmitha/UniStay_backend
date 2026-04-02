@@ -46,6 +46,16 @@ const incidentSchema = new mongoose.Schema(
       type: String,
       default: '',
     },
+    safetyActions: {
+      investigated: { type: Boolean, default: false },
+      fixedIssue: { type: Boolean, default: false },
+      installedSecurity: { type: Boolean, default: false },
+      monitoring: { type: Boolean, default: false },
+    },
+    safetyScore: {
+      type: Number,
+      default: 0,
+    },
     ownerRespondedAt: {
       type: Date,
     },
