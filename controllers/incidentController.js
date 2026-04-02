@@ -313,4 +313,60 @@ exports.getAuditLog = async (req, res, next) => {
   } catch (error) {
     next(error);
   }
+};// @desc    Get analytics for incidents
+// @route   GET /api/incidents/analytics
+// @access  Private (Admin)
+exports.getAnalytics = async (req, res, next) => {
+  try {
+    const incidents = await Incident.find().populate('property', 'name');
+
+    let total = incidents.length;
+    let open = 0;
+    let highSeverity = 0;
+
+    let monthlyData = {};
+    let propertyStats = {};
+
+    incidents.forEach(inc => {
+      const s = inc.status?.toLowerCase() || '';
+      if (s === 'open' || s === 'under investigation' || s === 'investigating') open++;
+      if (inc.severity === 'High') highSeverity++;
+
+      // Monthly Trend
+      const month = new Date(inc.createdAt).toLocaleString('default', { month: 'short' });
+      if (!monthlyData[month]) monthlyData[month] = { total: 0, highSeverity: 0 };
+      monthlyData[month].total++;
+      if (inc.severity === 'High') monthlyData[month].highSeverity++;
+
+      // Risky Properties
+      if (inc.property && inc.property._id) {
+        const pId = inc.property._id.toString();
+        if (!propertyStats[pId]) {
+          propertyStats[pId] = { id: pId, name: inc.property.name, incidents: 0 };
+        }
+        propertyStats[pId].incidents++;
+      }
+    });
+
+    const monthsOrder = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    const trendData = Object.keys(monthlyData)
+      .map(month => ({ month, ...monthlyData[month] }))
+      .sort((a, b) => monthsOrder.indexOf(a.month) - monthsOrder.indexOf(b.month));
+
+    const riskyProperties = Object.values(propertyStats)
+      .sort((a, b) => b.incidents - a.incidents)
+      .slice(0, 5);
+
+    res.status(200).json({
+      success: true,
+      data: {
+        stats: { total, open, highSeverity },
+        trendData,
+        riskyProperties
+      }
+    });
+  } catch (error) {
+    console.error('Analytics Error:', error);
+    res.status(500).json({ success: false, message: 'Server Error' });
+  }
 };

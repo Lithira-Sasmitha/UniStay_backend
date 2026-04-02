@@ -6,7 +6,8 @@ const {
   getIncidentById,
   updateIncidentStatus,
   addOwnerResponse,
-  getAuditLog
+  getAuditLog,
+  getAnalytics
 } = require('../controllers/incidentController');
 const { protect, authorize } = require('../middleware/authMiddleware');
 const multer = require('multer');
@@ -19,6 +20,7 @@ const upload = multer({ storage: multer.memoryStorage() });
 router.post('/', protect, authorize(['student']), upload.single('photo'), createIncident);
 router.get('/me', protect, authorize(['student']), getMyIncidents);
 router.get('/audit-log', protect, authorize(['superadmin']), getAuditLog);
+router.get('/analytics', protect, authorize(['superadmin']), getAnalytics);
 router.get('/:id', protect, getIncidentById);
 
 // Admin/Owner routes
