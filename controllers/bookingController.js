@@ -87,7 +87,11 @@ const getStudentBookings = async (req, res) => {
     try {
         const bookings = await Booking.find({ student: req.user._id })
             .populate('room', 'roomType monthlyRent advanceAmount advanceType totalCapacity')
-            .populate('property', 'name address photos trustBadge owner')
+            .populate({
+                path: 'property',
+                select: 'name address photos trustBadge owner',
+                populate: { path: 'owner', select: 'name email phone' }
+            })
             .sort('-createdAt');
 
         const bookingIds = bookings.map((b) => b._id);
