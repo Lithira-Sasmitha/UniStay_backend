@@ -53,18 +53,19 @@ router.post('/chat', protect, async (req, res, next) => {
     }
 });
 
-module.exports = router;
-
 // @desc    Get safety decision insights
 // @route   GET /api/safety/:id/decision
 // @access  Private
 router.get('/:id/decision', protect, async (req, res, next) => {
     try {
         const propertyId = req.params.id;
-        const property = await Property.findById(propertyId).populate('rooms');
+        const property = await Property.findById(propertyId);
         if (!property) {
             return res.status(404).json({ success: false, message: 'Property not found' });
         }
+
+        const Room = require('../models/Room');
+        const rooms = await Room.find({ property: propertyId });
 
         const query = { property: propertyId };
         const incidents = await Incident.find(query).sort({ createdAt: -1 });
@@ -111,8 +112,8 @@ router.get('/:id/decision', protect, async (req, res, next) => {
             insightMessage = 'Safety seems to be improving with fewer recent incidents.';
         }
 
-        let minPrice = property.isBoardingHouse && property.rooms ? Math.min(...property.rooms.map(r => r.price)) : 0;
-        let rent = minPrice > 0 ? minPrice : (property.price || 20000);
+        let minPrice = rooms.length > 0 ? Math.min(...rooms.map(r => r.monthlyRent)) : NaN;
+        let rent = !isNaN(minPrice) && minPrice > 0 ? minPrice : 20000;
         let perPerson = rent / 2;
         let safetyMessage = recommendation === 'Safe to stay' ? 'Sharing safely recommended' : 'Sharing not recommended currently';
 
