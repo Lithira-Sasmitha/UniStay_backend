@@ -32,17 +32,16 @@ const incidentSchema = new mongoose.Schema(
     },
     status: {
       type: String,
-      enum: ['open', 'investigating', 'resolved', 'rejected'],
-      default: 'open',
+      enum: ['Open', 'Under Investigation', 'Resolved', 'Rejected'],
+      default: 'Open',
     },
     adminNotes: {
       type: String,
       default: '',
     },
-    photoUrl: {
-      type: String,
-      default: '',
-    },
+    photos: [{
+      type: String
+    }],
     ownerResponse: {
       type: String,
       default: '',
@@ -50,6 +49,13 @@ const incidentSchema = new mongoose.Schema(
     ownerRespondedAt: {
       type: Date,
     },
+    auditLog: [{
+      action: { type: String, required: true },
+      performedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+      role: { type: String },
+      timestamp: { type: Date, default: Date.now },
+      details: { type: String }
+    }],
     investigationStartedAt: {
       type: Date,
     },

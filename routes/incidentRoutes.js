@@ -5,7 +5,8 @@ const {
   getIncidents,
   getIncidentById,
   updateIncidentStatus,
-  addOwnerResponse
+  addOwnerResponse,
+  getAuditLog
 } = require('../controllers/incidentController');
 const { protect, authorize } = require('../middleware/authMiddleware');
 const multer = require('multer');
@@ -17,11 +18,12 @@ const upload = multer({ storage: multer.memoryStorage() });
 // Students reporting or getting their own
 router.post('/', protect, authorize(['student']), upload.single('photo'), createIncident);
 router.get('/me', protect, authorize(['student']), getMyIncidents);
+router.get('/audit-log', protect, authorize(['superadmin']), getAuditLog);
 router.get('/:id', protect, getIncidentById);
 
 // Admin/Owner routes
 router.get('/', protect, authorize(['superadmin', 'boardingowner']), getIncidents);
-router.patch('/:id/status', protect, authorize(['superadmin', 'boardingowner']), updateIncidentStatus);
+router.patch('/:id/status', protect, authorize(['superadmin']), updateIncidentStatus);
 router.patch('/:id/owner-response', protect, authorize(['boardingowner']), addOwnerResponse);
 
 module.exports = router;
