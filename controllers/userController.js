@@ -1,4 +1,5 @@
 const User = require('../models/User');
+const Room = require('../models/Room');
 const jwt = require('jsonwebtoken');
 const { sendOTP } = require('../utils/emailService');
 
@@ -309,6 +310,76 @@ const updateUserProfile = async (req, res) => {
 };
 
 /**
+ * @desc    Toggle property in user wishlist
+ * @route   POST /api/users/wishlist/:propertyId
+ * @access  Private
+ */
+const toggleWishlist = async (req, res) => {
+  try {
+    const user = await User.findById(req.user._id);
+    const propertyId = req.params.propertyId;
+
+    if (!user) {
+      return res.status(404).json({ success: false, message: 'User not found' });
+    }
+
+    const index = user.wishlist.indexOf(propertyId);
+    let isSaved = false;
+    if (index > -1) {
+      // Remove if already exists
+      user.wishlist.splice(index, 1);
+      isSaved = false;
+    } else {
+      // Add if not exists
+      user.wishlist.push(propertyId);
+      isSaved = true;
+    }
+    
+    // Validate to bypass empty array crash issues
+    user.wishlist = user.wishlist.filter(id => id);
+    
+    await user.save();
+    return res.json({ success: true, message: isSaved ? 'Added to wishlist' : 'Removed from wishlist', isSaved });
+  } catch (error) {
+    console.error('Wishlist error:', error);
+    res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+/**
+ * @desc    Get user wishlist properties
+ * @route   GET /api/users/wishlist
+ * @access  Private/Student
+ */
+const getWishlist = async (req, res) => {
+  try {
+    const user = await User.findById(req.user._id).populate({
+      path: 'wishlist',
+      populate: { path: 'owner', select: 'name' }
+    });
+
+    if (!user) {
+      return res.status(404).json({ success: false, message: 'User not found' });
+    }
+
+    // Filter out any null entries just in case a property gets deleted from the db but the id remains in user.wishlist
+    const validWishlist = user.wishlist.filter(item => item !== null);
+
+    // Fetch associated rooms for each property to emulate full property view
+    const wishlistWithRooms = await Promise.all(
+      validWishlist.map(async (prop) => {
+        const rooms = await Room.find({ property: prop._id });
+        return { ...prop.toObject(), rooms };
+      })
+    );
+
+    res.json({ success: true, wishlist: wishlistWithRooms });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+/**
  * @desc    Delete user (Super Admin Only)
  * @route   DELETE /api/users/:id
  * @access  Private/SuperAdmin
@@ -504,4 +575,6 @@ module.exports = {
   sendVerificationOTP,
   verifyEmailOTP,
   listRoommates,
+  toggleWishlist,
+  getWishlist,
 };
