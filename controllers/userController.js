@@ -141,6 +141,7 @@ const loginUser = async (req, res) => {
         role: user.role,
         isVerified: user.isVerified,
         universityEmail: user.universityEmail,
+        profileImage: user.profileImage,
         accessToken,
         refreshToken,
       });
@@ -252,6 +253,7 @@ const getUserProfile = async (req, res) => {
           phonenumber: user.phonenumber,
           universityEmail: user.universityEmail,
           isVerified: user.isVerified,
+          profileImage: user.profileImage,
         },
       });
     } else {
@@ -279,6 +281,10 @@ const updateUserProfile = async (req, res) => {
       user.age = req.body.age || user.age;
       user.nic = req.body.nic || user.nic;
       user.phonenumber = req.body.phonenumber || user.phonenumber;
+      
+      if (req.body.profileImage !== undefined) {
+        user.profileImage = req.body.profileImage;
+      }
 
       if (req.body.password) {
         user.password = req.body.password;
@@ -299,6 +305,9 @@ const updateUserProfile = async (req, res) => {
           age: updatedUser.age,
           nic: updatedUser.nic,
           phonenumber: updatedUser.phonenumber,
+          profileImage: updatedUser.profileImage,
+          isVerified: updatedUser.isVerified,
+          universityEmail: updatedUser.universityEmail,
         },
       });
     } else {
@@ -443,6 +452,10 @@ const updateUserByAdmin = async (req, res) => {
         user.role = req.body.role;
       }
 
+      if (req.body.profileImage !== undefined) {
+        user.profileImage = req.body.profileImage;
+      }
+
       if (req.body.password) {
         user.password = req.body.password;
       }
@@ -462,6 +475,7 @@ const updateUserByAdmin = async (req, res) => {
           age: updatedUser.age,
           nic: updatedUser.nic,
           phonenumber: updatedUser.phonenumber,
+          profileImage: updatedUser.profileImage,
         },
       });
     } else {
@@ -554,7 +568,7 @@ const listRoommates = async (req, res) => {
       _id: { $ne: req.user._id },
       role: 'student',
       isVerified: true
-    }).select('name email university address age nic phonenumber');
+    }).select('name email university address age nic phonenumber profileImage');
     res.json({ success: true, roommates });
   } catch (error) {
     res.status(500).json({ success: false, message: error.message });

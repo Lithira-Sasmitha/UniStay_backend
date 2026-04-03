@@ -31,7 +31,7 @@ exports.getRoommates = async (req, res) => {
 
     // 4. Find potential roommates
     const roommates = await User.find(query)
-      .select('name username email phonenumber university faculty year semester hometown address age nic isVerified');
+      .select('name username email phonenumber university faculty year semester hometown address age nic isVerified profileImage');
 
     res.json({
       success: true,
