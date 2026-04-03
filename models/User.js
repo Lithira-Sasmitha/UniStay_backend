@@ -104,6 +104,12 @@ const userSchema = new mongoose.Schema(
     refreshToken: {
       type: String,
     },
+    wishlist: [
+      {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'Property',
+      },
+    ],
   },
   {
     timestamps: true,
