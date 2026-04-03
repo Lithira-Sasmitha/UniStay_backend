@@ -33,14 +33,13 @@ const requestBooking = async (req, res) => {
             return res.status(400).json({ success: false, message: 'Property is not available for booking' });
         }
 
-        // Check for existing pending/approved/confirmed booking by this student for this room
+        // Block if student already has any active booking (any room/property)
         const existingBooking = await Booking.findOne({
             student: req.user._id,
-            room: roomId,
             status: { $in: ['pending', 'approved', 'confirmed'] },
         });
         if (existingBooking) {
-            return res.status(400).json({ success: false, message: 'You already have an active booking for this room' });
+            return res.status(400).json({ success: false, message: 'You already have an active booking. Cancel it before booking another place.' });
         }
 
         const booking = await Booking.create({
@@ -459,6 +458,55 @@ const rejectBooking = async (req, res) => {
     }
 };
 
+/**
+ * @desc    Get student's current confirmed boarding details
+ *          (property, room, roommates, notices count)
+ * @route   GET /api/bookings/my-boarding
+ * @access  Private/Student
+ */
+const getMyBoarding = async (req, res) => {
+    try {
+        const booking = await Booking.findOne({
+            student: req.user._id,
+            status: 'confirmed',
+        })
+            .populate('room')
+            .populate({
+                path: 'property',
+                select: 'name address description photos trustBadge isActive owner',
+                populate: { path: 'owner', select: 'name email phonenumber' },
+            });
+
+        if (!booking) {
+            return res.json({ success: true, boarding: null });
+        }
+
+        // Get all confirmed occupants of the same room (roommates)
+        const room = await Room.findById(booking.room._id)
+            .populate('currentOccupants.student', 'name university');
+
+        const roommates = (room.currentOccupants || [])
+            .filter(o => o.student?._id?.toString() !== req.user._id.toString())
+            .map(o => ({
+                name: o.student?.name || 'Unknown',
+                university: o.student?.university || '',
+                bookingDate: o.bookingDate,
+            }));
+
+        res.json({
+            success: true,
+            boarding: {
+                booking,
+                property: booking.property,
+                room: booking.room,
+                roommates,
+            },
+        });
+    } catch (error) {
+        res.status(500).json({ success: false, message: error.message });
+    }
+};
+
 module.exports = {
     requestBooking,
     getStudentBookings,
@@ -469,4 +517,5 @@ module.exports = {
     getOwnerBookings,
     approveBooking,
     rejectBooking,
+    getMyBoarding,
 };
