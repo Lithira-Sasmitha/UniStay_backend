@@ -51,6 +51,7 @@ app.use('/api/roommates', roommateRoutes);
 app.use('/api/incidents', require('./routes/incidentRoutes'));
 app.use('/api/safety', require('./routes/safetyRoutes'));
 app.use('/api/messages', require('./routes/messageRoutes'));
+app.use('/api/notices', require('./routes/noticeRoutes'));
 
 // Root Endpoint
 app.get('/', (req, res) => {
