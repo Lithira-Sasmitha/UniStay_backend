@@ -15,6 +15,8 @@ const {
   updateUserByAdmin,
   sendVerificationOTP,
   verifyEmailOTP,
+  toggleWishlist,
+  getWishlist,
 } = require('../controllers/userController');
 
 // Import middlewares
@@ -33,6 +35,10 @@ router.post('/verify-otp', protect, verifyEmailOTP);
 // Private profile routes
 router.get('/profile', protect, getUserProfile);
 router.put('/profile', protect, updateUserProfile);
+
+// Wishlist routes
+router.get('/wishlist', protect, authorize(['student']), getWishlist);
+router.post('/wishlist/:propertyId', protect, authorize(['student']), toggleWishlist);
 
 // Admin / SuperAdmin routes
 router.get('/', protect, authorize(['superadmin']), getAllUsers);
