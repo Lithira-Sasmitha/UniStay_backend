@@ -31,7 +31,8 @@ app.use(
 
 // Middleware
 app.use(helmet());                   // Security headers
-app.use(express.json());             // Data handler
+app.use(express.json({ limit: '10mb' })); // Data handler with higher limit for base64 images
+app.use(express.urlencoded({ limit: '10mb', extended: true }));
 app.use(cookieParser());             // Cookie handler
 
 if (process.env.NODE_ENV === 'development') {
@@ -52,6 +53,7 @@ app.use('/api/incidents', require('./routes/incidentRoutes'));
 app.use('/api/safety', require('./routes/safetyRoutes'));
 app.use('/api/messages', require('./routes/messageRoutes'));
 app.use('/api/notices', require('./routes/noticeRoutes'));
+app.use('/api/preferences', require('./routes/preferenceRoutes'));
 
 // Root Endpoint
 app.get('/', (req, res) => {

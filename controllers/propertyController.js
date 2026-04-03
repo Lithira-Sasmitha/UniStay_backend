@@ -122,7 +122,7 @@ const getOwnerListings = async (req, res) => {
         // Attach rooms to each property
         const results = await Promise.all(
             properties.map(async (prop) => {
-                const rooms = await Room.find({ property: prop._id }).populate('currentOccupants.student', 'name email');
+                const rooms = await Room.find({ property: prop._id }).populate('currentOccupants.student', 'name email profileImage');
                 return { ...prop.toObject(), rooms };
             })
         );
@@ -162,7 +162,7 @@ const addRoom = async (req, res) => {
 
         // Return updated room list
         const rooms = await Room.find({ property: property._id })
-            .populate('currentOccupants.student', 'name email phonenumber');
+            .populate('currentOccupants.student', 'name email phonenumber profileImage');
         res.status(201).json({ success: true, message: 'Room added', room, rooms });
     } catch (error) {
         res.status(500).json({ success: false, message: error.message });
@@ -239,7 +239,7 @@ const deleteRoom = async (req, res) => {
 
         // Return updated room list
         const rooms = await Room.find({ property: room.property._id })
-            .populate('currentOccupants.student', 'name email phonenumber');
+            .populate('currentOccupants.student', 'name email phonenumber profileImage');
         res.json({ success: true, message: 'Room deleted', rooms });
     } catch (error) {
         res.status(500).json({ success: false, message: error.message });
@@ -367,7 +367,7 @@ const getBoardingArrangeView = async (req, res) => {
         }
 
         const rooms = await Room.find({ property: property._id })
-            .populate('currentOccupants.student', 'name email phonenumber university nic')
+            .populate('currentOccupants.student', 'name email phonenumber university nic profileImage')
             .populate('currentOccupants.bookingId', 'status createdAt advancePaid');
 
         // Get all active bookings for this property
@@ -375,7 +375,7 @@ const getBoardingArrangeView = async (req, res) => {
             property: property._id,
             status: { $in: ['pending', 'approved', 'confirmed'] },
         })
-            .populate('student', 'name email phonenumber university address age nic')
+            .populate('student', 'name email phonenumber university address age nic profileImage')
             .populate('room', 'roomType')
             .sort('-createdAt');
 
@@ -413,7 +413,7 @@ const getOwnerBoardingManagement = async (req, res) => {
         const results = await Promise.all(
             properties.map(async (prop) => {
                 const rooms = await Room.find({ property: prop._id })
-                    .populate('currentOccupants.student', 'name email phonenumber')
+                    .populate('currentOccupants.student', 'name email phonenumber profileImage')
                     .populate('currentOccupants.bookingId', 'status createdAt advancePaid');
                 return { ...prop.toObject(), rooms };
             })
@@ -449,7 +449,7 @@ const getPublicListings = async (req, res) => {
         }
 
         const properties = await Property.find(query)
-            .populate('owner', 'name email phonenumber')
+            .populate('owner', 'name email phonenumber profileImage')
             .sort('-createdAt');
 
         // Attach rooms and filter out properties where ALL rooms are full
@@ -498,7 +498,7 @@ const getPublicListings = async (req, res) => {
 const getListingById = async (req, res) => {
     try {
         const property = await Property.findById(req.params.propertyId)
-            .populate('owner', 'name email phonenumber');
+            .populate('owner', 'name email phonenumber profileImage');
 
         if (!property) return res.status(404).json({ success: false, message: 'Property not found' });
 
@@ -539,7 +539,7 @@ const getListingById = async (req, res) => {
 const getVerificationQueue = async (req, res) => {
     try {
         const properties = await Property.find({ verificationStatus: 'pending' })
-            .populate('owner', 'name email phonenumber nic')
+            .populate('owner', 'name email phonenumber nic profileImage')
             .sort('-createdAt');
 
         res.json({ success: true, properties });
@@ -556,7 +556,7 @@ const getVerificationQueue = async (req, res) => {
 const getAllProperties = async (req, res) => {
     try {
         const properties = await Property.find({})
-            .populate('owner', 'name email phonenumber')
+            .populate('owner', 'name email phonenumber profileImage')
             .sort('-createdAt');
 
         const results = await Promise.all(

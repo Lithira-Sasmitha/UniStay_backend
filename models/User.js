@@ -110,6 +110,9 @@ const userSchema = new mongoose.Schema(
         ref: 'Property',
       },
     ],
+    profileImage: {
+      type: String,
+    },
   },
   {
     timestamps: true,
