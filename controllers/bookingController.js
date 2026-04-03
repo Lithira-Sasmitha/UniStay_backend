@@ -474,7 +474,7 @@ const getMyBoarding = async (req, res) => {
             .populate({
                 path: 'property',
                 select: 'name address description photos trustBadge isActive owner',
-                populate: { path: 'owner', select: 'name email phonenumber' },
+                populate: { path: 'owner', select: 'name email phonenumber profileImage' },
             });
 
         if (!booking) {
@@ -483,13 +483,14 @@ const getMyBoarding = async (req, res) => {
 
         // Get all confirmed occupants of the same room (roommates)
         const room = await Room.findById(booking.room._id)
-            .populate('currentOccupants.student', 'name university');
+            .populate('currentOccupants.student', 'name university profileImage');
 
         const roommates = (room.currentOccupants || [])
             .filter(o => o.student?._id?.toString() !== req.user._id.toString())
             .map(o => ({
                 name: o.student?.name || 'Unknown',
                 university: o.student?.university || '',
+                profileImage: o.student?.profileImage || '',
                 bookingDate: o.bookingDate,
             }));
 
