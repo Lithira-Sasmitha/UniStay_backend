@@ -1,6 +1,6 @@
 const Incident = require('../models/Incident');
 const { uploadToSupabase } = require('../config/supabase');
-const { calculateRiskTrend } = require('../utils/safetyGovernance');
+const { calculateSafetyStatus } = require('../utils/safetyGovernance');
 
 // @desc    Create a new incident report
 // @route   POST /api/incidents
@@ -39,12 +39,18 @@ exports.createIncident = async (req, res, next) => {
       category,
       severity,
       description,
-      photoUrl,
-      status: 'open'
+      photos: photoUrl ? [photoUrl] : [],
+      status: 'Open',
+      auditLog: [{
+        action: 'Incident Reported',
+        performedBy: req.user._id,
+        role: req.user.role,
+        details: 'Initial report submitted by student'
+      }]
     });
 
-    // Recalculate risk trend for this property
-    await calculateRiskTrend(propertyId);
+    // Recalculate safety status for this property
+    await calculateSafetyStatus(propertyId);
 
     res.status(201).json({
       success: true,
@@ -141,11 +147,11 @@ exports.getIncidentById = async (req, res, next) => {
 
 // @desc    Update incident status
 // @route   PATCH /api/incidents/:id/status
-// @access  Private (Admin / Owner)
+// @access  Private (Admin)
 exports.updateIncidentStatus = async (req, res, next) => {
   try {
     const { status, adminNotes } = req.body;
-    const validStatuses = ['open', 'investigating', 'resolved', 'rejected'];
+    const validStatuses = ['Open', 'Under Investigation', 'Resolved', 'Rejected'];    
 
     if (!validStatuses.includes(status)) {
         return res.status(400).json({ success: false, message: 'Invalid status' });
@@ -156,32 +162,35 @@ exports.updateIncidentStatus = async (req, res, next) => {
       return res.status(404).json({ success: false, message: 'Incident not found' });
     }
 
-    // Authorization check
-    if (req.user.role === 'boardingowner') {
-        // Must ensure the incident belongs to a property they own
-        const property = await require('../models/Property').findById(incident.property);
-        if (property && property.owner.toString() !== req.user._id.toString()) {
-            return res.status(403).json({ success: false, message: 'Not authorized' });
-        }
-    } else if (req.user.role !== 'superadmin') {
-        return res.status(403).json({ success: false, message: 'Not authorized' });
+    // Authorization check: Only Admin can change status
+    if (req.user.role !== 'superadmin') {
+        return res.status(403).json({ success: false, message: 'Not authorized: Only Admin can change incident status' });
     }
 
+    const oldStatus = incident.status;
     incident.status = status;
     if (adminNotes !== undefined) {
       incident.adminNotes = adminNotes;
     }
 
-    if (status === 'investigating' && !incident.investigationStartedAt) {
+    if (status === 'Under Investigation' && !incident.investigationStartedAt) {       
       incident.investigationStartedAt = Date.now();
-    } else if (status === 'resolved' && !incident.resolvedAt) {
+    } else if (status === 'Resolved' && !incident.resolvedAt) {
       incident.resolvedAt = Date.now();
     }
     
+    // Add to audit log
+    incident.auditLog.push({
+      action: 'Status Changed',
+      performedBy: req.user._id,
+      role: req.user.role,
+      details: `Status changed from ${oldStatus} to ${status}`
+    });
+    
     await incident.save();
     
-    // Recalculate risk trend for property when incident status changes
-    await calculateRiskTrend(incident.property);
+    // Recalculate safety status for property when incident status changes
+    await calculateSafetyStatus(incident.property);
     
     res.status(200).json({
       success: true,
@@ -197,10 +206,10 @@ exports.updateIncidentStatus = async (req, res, next) => {
 // @access  Private (Boarding Owner)
 exports.addOwnerResponse = async (req, res, next) => {
   try {
-    const { ownerResponse } = req.body;
+    const { ownerResponse, safetyActions, safetyScore } = req.body;
 
-    if (!ownerResponse) {
-      return res.status(400).json({ success: false, message: 'Please provide a response' });
+    if (!ownerResponse && !safetyActions) {
+      return res.status(400).json({ success: false, message: 'Please provide a response or select safety actions.' });
     }
 
     const incident = await Incident.findById(req.params.id);
@@ -214,12 +223,21 @@ exports.addOwnerResponse = async (req, res, next) => {
       return res.status(403).json({ success: false, message: 'Not authorized to respond to this incident' });
     }
 
-    if (incident.ownerResponse) {
-      return res.status(400).json({ success: false, message: 'Response already submitted' });
+    if (incident.ownerResponse || incident.ownerRespondedAt) {
+      return res.status(400).json({ success: false, message: 'Safety improvement plan already submitted for this incident.' });
     }
 
-    incident.ownerResponse = ownerResponse;
+    incident.ownerResponse = ownerResponse || '';
+    incident.safetyActions = safetyActions || { investigated: false, fixedIssue: false, installedSecurity: false, monitoring: false };
+    incident.safetyScore = safetyScore || 0;
     incident.ownerRespondedAt = Date.now();
+
+    incident.auditLog.push({
+      action: 'Safety Improvement Deployed',
+      performedBy: req.user._id,
+      role: req.user.role,
+      details: 'Property owner submitted a reactive safety plan with an improvement score of ' + (safetyScore || 0) + '%'
+    });
     
     await incident.save();
 
@@ -238,35 +256,119 @@ exports.addOwnerResponse = async (req, res, next) => {
 exports.getPropertySafetyStatus = async (req, res, next) => {
   try {
     const propertyId = req.params.propertyId || req.params.id;
-    const incidents = await Incident.find({ property: propertyId, status: { $ne: 'rejected' } });
-
-    let level = 'safe';
-    let unresolvedIncidents = incidents.filter(inc => inc.status === 'open' || inc.status === 'investigating');
-    
-    let activeCount = unresolvedIncidents.length;
-
-    if (activeCount > 0) {
-        const hasHighSeverity = unresolvedIncidents.some(inc => inc.severity === 'High');
-        if (hasHighSeverity || activeCount >= 3) {
-            level = 'review'; // Under Review
-        } else {
-            level = 'caution'; // Caution
-        }
+    const property = await require('../models/Property').findById(propertyId);
+    if (!property) {
+      return res.status(404).json({ success: false, message: 'Property not found' });
     }
 
-    // Get last updated status time (latest incident update)
-    let lastUpdated = incidents.length > 0 ? new Date(Math.max(...incidents.map(i => new Date(i.updatedAt).getTime()))) : null;
+    const incidents = await Incident.find({ property: propertyId, status: { $ne: 'Rejected' } });
+
+    let activeCount = incidents.filter(inc => inc.status === 'Open' || inc.status === 'Under Investigation').length;
 
     res.status(200).json({
         success: true,
         data: {
-          level,
-          activeCount,
-          lastUpdated,
-          totalReported: incidents.length
+          safetyStatus: property.safetyStatus,
+          activeAlerts: property.activeAlerts,
+          lastUpdated: property.lastRiskEvaluation,
+          totalReported: incidents.length,
+          activeCount
         }
     });
   } catch (error) {
     next(error);
+  }
+};
+
+// @desc    Get audit log of all incidents
+// @route   GET /api/incidents/audit-log
+// @access  Private (Admin)
+exports.getAuditLog = async (req, res, next) => {
+  try {
+    const incidents = await Incident.find({ 'auditLog.0': { $exists: true } })
+      .select('_id title property auditLog')
+      .populate('property', 'name')
+      .populate('auditLog.performedBy', 'name email role');
+
+    let fullAuditLog = [];
+    incidents.forEach(inc => {
+      inc.auditLog.forEach(log => {
+        fullAuditLog.push({
+          incidentId: inc._id,
+          incidentTitle: inc.title,
+          propertyName: inc.property ? inc.property.name : 'Unknown',
+          action: log.action,
+          performedBy: log.performedBy ? log.performedBy.name : 'System',
+          role: log.role,
+          details: log.details,
+          timestamp: log.timestamp
+        });
+      });
+    });
+
+    fullAuditLog.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
+
+    res.status(200).json({
+      success: true,
+      data: fullAuditLog
+    });
+  } catch (error) {
+    next(error);
+  }
+};// @desc    Get analytics for incidents
+// @route   GET /api/incidents/analytics
+// @access  Private (Admin)
+exports.getAnalytics = async (req, res, next) => {
+  try {
+    const incidents = await Incident.find().populate('property', 'name');
+
+    let total = incidents.length;
+    let open = 0;
+    let highSeverity = 0;
+
+    let monthlyData = {};
+    let propertyStats = {};
+
+    incidents.forEach(inc => {
+      const s = inc.status?.toLowerCase() || '';
+      if (s === 'open' || s === 'under investigation' || s === 'investigating') open++;
+      if (inc.severity === 'High') highSeverity++;
+
+      // Monthly Trend
+      const month = new Date(inc.createdAt).toLocaleString('default', { month: 'short' });
+      if (!monthlyData[month]) monthlyData[month] = { total: 0, highSeverity: 0 };
+      monthlyData[month].total++;
+      if (inc.severity === 'High') monthlyData[month].highSeverity++;
+
+      // Risky Properties
+      if (inc.property && inc.property._id) {
+        const pId = inc.property._id.toString();
+        if (!propertyStats[pId]) {
+          propertyStats[pId] = { id: pId, name: inc.property.name, incidents: 0 };
+        }
+        propertyStats[pId].incidents++;
+      }
+    });
+
+    const monthsOrder = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    const trendData = Object.keys(monthlyData)
+      .map(month => ({ month, ...monthlyData[month] }))
+      .sort((a, b) => monthsOrder.indexOf(a.month) - monthsOrder.indexOf(b.month));
+
+    const riskyProperties = Object.values(propertyStats)
+      .sort((a, b) => b.incidents - a.incidents)
+      .slice(0, 5);
+
+    res.status(200).json({
+      success: true,
+      data: {
+        stats: { total, open, highSeverity },
+        trendData,
+        riskyProperties
+      }
+    });
+  } catch (error) {
+    console.error('Analytics Error:', error);
+    res.status(500).json({ success: false, message: 'Server Error' });
   }
 };
